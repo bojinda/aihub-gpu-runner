@@ -123,6 +123,9 @@ class HTTPTransport:
             return value
         except (ValueError, UnicodeError):
             raise Uncertain("invalid_backend_json") from None
+    def ack(self, method, route, payload=None, timeout=5):
+        """Validate an HTTP acknowledgement without requiring a JSON body."""
+        self._request(method, route, payload, timeout=timeout)
     def binary(self, route, params, timeout=5):
         return self._request("GET", route, params=params, timeout=timeout)
 
@@ -322,7 +325,7 @@ class ComfyBackend:
         try:
             if not self._queue_empty(deadline):
                 raise CleanupPending("unexpected_work_before_cleanup")
-            self.transport.json("POST", "/free", {"unload_models": True, "free_memory": True},
+            self.transport.ack("POST", "/free", {"unload_models": True, "free_memory": True},
                                 timeout=remaining(deadline, CleanupPending))
             stable = 0
             while True:

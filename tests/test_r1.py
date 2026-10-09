@@ -232,6 +232,8 @@ class ScriptedTransport:
         if isinstance(value, BaseException):
             raise value
         return value
+    def ack(self, method, route, payload=None, timeout=1):
+        self.json(method, route, payload, timeout)
     def binary(self, route, params, timeout=1):
         self.calls.append(("GET-BINARY", route, params))
         return self.responses.pop(0)

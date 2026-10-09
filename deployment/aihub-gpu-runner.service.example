@@ -1,0 +1,20 @@
+# REVIEW TEMPLATE ONLY: do not install/start without separate approval.
+# The account must already have permitted access to the existing physical locks.
+[Unit]
+Description=AI-HUB GPU stage coordinator
+After=network.target
+
+[Service]
+Type=simple
+User=REPLACE_WITH_APPROVED_LOCK_OWNER
+WorkingDirectory=/opt/aihub-gpu-runner
+EnvironmentFile=/etc/aihub-gpu-runner/environment
+ExecStart=/usr/bin/python3 -m aihub_gpu_runner --config /etc/aihub-gpu-runner/config.json serve
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

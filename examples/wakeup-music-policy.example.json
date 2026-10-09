@@ -1,0 +1,20 @@
+{
+  "kind": "comfy",
+  "resources": ["gpu0"],
+  "base_url": "http://127.0.0.1:8188",
+  "workflow_template": "REPLACE_WITH_REVIEWED_WAKEUP_API_JSON",
+  "workflow_sha256": "391857888df9110a97b0d3d9b7b35a5b202ee5af26339cf10f5ce993dc76a828",
+  "mutations": {
+    "225.value": {"type": "string", "max_length": 32768},
+    "226.value": {"type": "string", "max_length": 32768},
+    "117.value": {"type": "number", "minimum": 1, "maximum": 600},
+    "409.seed": {"type": "integer", "minimum": 1, "maximum": 999999999999999}
+  },
+  "output_node": "104",
+  "output_key": "audio",
+  "media_type": "audio/mpeg",
+  "idle_memory_mb": null,
+  "cleanup_samples": 3,
+  "execution_timeout": 1800,
+  "cleanup_timeout": 60
+}

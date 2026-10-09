@@ -1,0 +1,19 @@
+{
+  "1": {
+    "class_type": "SyntheticAudioGenerate",
+    "inputs": {
+      "seed": 1,
+      "lyrics": "Synthetic fixture only"
+    }
+  },
+  "104": {
+    "class_type": "SaveAudioMP3",
+    "inputs": {
+      "audio": [
+        "1",
+        0
+      ],
+      "filename_prefix": "audio/synthetic"
+    }
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "state_dir": "../state",
+  "lock_paths": {
+    "gpu0": "/tmp/REPLACE_WITH_EXISTING_GPU0_LOCK",
+    "gpu1": "/tmp/REPLACE_WITH_EXISTING_GPU1_LOCK"
+  },
+  "listen": {
+    "host": "127.0.0.1",
+    "port": 8790
+  },
+  "auth_token_env": "AIHUB_GPU_RUNNER_TOKEN",
+  "workers": 4,
+  "targets": {
+    "ollama": {
+      "kind": "ollama",
+      "resources": [
+        "gpu1"
+      ],
+      "base_url": "http://127.0.0.1:11434",
+      "models": [
+        "REPLACE_WITH_APPROVED_MODEL"
+      ],
+      "max_context": 98304
+    },
+    "wallpaper": {
+      "kind": "comfy",
+      "resources": [
+        "gpu0"
+      ],
+      "base_url": "http://127.0.0.1:8190",
+      "workflow_template": "wallpaper.synthetic.json",
+      "workflow_sha256": "043de6ef70abbb8aadf93dfdf34b6a51278b35e9ebb75b82128ff453bad4e578",
+      "mutations": {
+        "1.seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "1.prompt": {
+          "type": "string",
+          "max_length": 32768
+        }
+      },
+      "output_node": "2",
+      "output_key": "images",
+      "media_type": "image/png",
+      "idle_memory_mb": null,
+      "cleanup_samples": 3
+    },
+    "music": {
+      "kind": "comfy",
+      "resources": [
+        "gpu0"
+      ],
+      "base_url": "http://127.0.0.1:8188",
+      "workflow_template": "music.synthetic.json",
+      "workflow_sha256": "c3d3468b73f385c54ac24d1ee433916c709f2d7d6bab7553b41acd4db2f581ad",
+      "mutations": {
+        "1.seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "1.lyrics": {
+          "type": "string",
+          "max_length": 32768
+        }
+      },
+      "output_node": "104",
+      "output_key": "audio",
+      "media_type": "audio/mpeg",
+      "idle_memory_mb": null,
+      "cleanup_samples": 3
+    }
+  }
+}

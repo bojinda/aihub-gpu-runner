@@ -1,11 +1,12 @@
 # Operations boundary
 
-R2 meeting, dashboard and music integrations are accepted for offline development.
-Approved-input meeting identity and the historical summary launcher are tested
-offline, pending review. The bounded R2 deployment plan is a proposal only; stop
-for review before any live step. See [deployment proposal](r2-deployment-plan.md).
-No service is deployed. Keep the operator's stopped/paused callers and running
-ComfyUI containers; do not trigger jobs or change GPU configuration.
+Current checkpoint: core dual-GPU meeting sessions and safe configuration-scope
+transition, tested offline. Stop for operator review. The operator reports an
+installed/bootstrapped AI-HUB runner, ready with no owners, and GPU1-only Ollama;
+these are operator facts, not fresh remote observations. The dual delta is not
+installed or executed by this checkpoint. Existing callers remain stopped/paused.
+See [dual session deployment steps](dual-meeting-session.md). The earlier R2 plan
+is historical planning; refresh its deployment assumptions before use.
 
 Before eventual deployment, obtain separate host/window approval and validate
 Linux locking/storage, existing lock paths/inodes/permissions, service account,
@@ -39,3 +40,16 @@ Local CLI actions (future operational approval required):
 
 These commands do not install/restart services or automate backend recovery.
 Do not delete state to fix a changed scope or bypass uncertain ownership.
+
+The local `transition-scope` action is explicitly idle-only and additive for this
+checkpoint: it appends history and updates scope under original paired native
+locks, preserving ready/bootstrap/jobs/results. It requires an excluded/approved
+window and refuses active supervisors, owners, nonfinal jobs or lock drift. Exact
+`--rollback` reverses the immediately recorded transition without restoring an old
+journal backup. No automatic config migration occurs at startup.
+
+The local `dual-restore` action needs exact operator evidence of resolved work
+and one specific restoration approval. It verifies/restores the original GPU1
+placement with both owners held; it never releases them. Subsequent `recover`
+requires stored restoration proof and exact approved recovery evidence. No API
+mode-switch/recovery endpoint, automatic uncertain restoration or force release.

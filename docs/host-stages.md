@@ -111,3 +111,16 @@ Rollback is not permission to bypass unresolved ownership. Under a separately
 approved window, exclude submissions, resolve existing owned work, preserve state
 and physical lock identity, then review reverting the adapter. No live R2
 deployment currently exists to roll back.
+
+## Explicit dual-GPU meeting session
+
+Use `gpu0+gpu1` only with a dedicated configured dual Ollama target and matching
+`AIHUB_GPU_DUAL_APPROVAL`. The historical launcher selects it with
+`--dual-gpu-target NAME`; ordinary historical and HA runs remain GPU1 by default.
+One existing shared Admission lease spans both original physical locks across
+all map/reduce/recap calls. Only known-complete requests/owned unload can reach
+controlled restoration. Verified original GPU1 placement/readiness/idle memory
+precedes release; ambiguity holds both owners and requires explicit local recovery.
+See [dual session operations](dual-meeting-session.md) and the deliberately
+non-live-ready [target example](../examples/dual-meeting-target.example.json).
+No gateway or whole-meeting algorithm is introduced.

@@ -1,6 +1,6 @@
 # AI-HUB GPU Coordination Roadmap
 
-**Updated:** 2026-10-09 — all three adapters accepted offline; meeting deployment corrections and bounded deployment proposal ready for review
+**Updated:** 2026-10-09 — core dual-GPU meeting session checkpoint implemented/tested offline, ready for review
 **Status:** Planning document; no implementation, deployment, or publication is authorized by this file alone.
 **Immediate priority:** Get meeting summaries, wallpaper generation, and wake-up music working reliably together.
 **Next priority:** Add a compatible gateway for AnythingLLM, Open WebUI, and **Continue in VS Code**.
@@ -33,15 +33,15 @@ Build one reusable AI-HUB-side GPU runner, provisionally `aihub-gpu-runner`. App
 | Music ComfyUI | GPU0 | Same resource lock, separate named backend/container. |
 | Routine Ollama, including meeting summaries | GPU1 | Physically restrict the routine Ollama backend to GPU1. |
 | Prompt preparation and file composition | Neither | Do not reserve a GPU for CPU-only work. |
-| Dual-GPU Ollama | GPU0 + GPU1 | Disabled in normal operation until its own later checkpoint. |
+| Dedicated dual-GPU meeting Ollama | GPU0 + GPU1 | Core next checkpoint R2-D: explicit session target, atomic two-resource reservation, controlled activation and verified GPU1 restoration; offline first. |
 
-The existing 96K Q8 single-GPU benchmark is useful capacity evidence, not a requirement to allocate 96K to every request. Preserve stage-specific model/context settings. Dual-GPU sharding was demonstrated in a smoke test, but that does not make its scheduling production-ready.
+The existing 96K Q8 single-GPU benchmark is useful capacity evidence, not a requirement to allocate 96K to every request. Preserve stage-specific model/context settings. The operator reports Qwen3.8:27b at 192K across both RTX 3090s, entirely GPU-resident. This is a core intended meeting use case, not an optional post-gateway feature. Preserve existing algorithms/prompts/models/context defaults; the benchmark is capacity evidence, not live coordination acceptance. CPU work inside a selected dual summary session retains both reservations until that session ends.
 
 ### Not prerequisites for pipeline recovery or the operator's manual upload
 
 - Whole-meeting JSON/evidence redesign, new model comparisons, or more context benchmarks.
 - Perfect speaker identification, biometric matching, or automatic diarization repair.
-- An Ollama-compatible gateway, interactive priority scheduling, or automated dual-GPU switching.
+- An Ollama-compatible gateway or interactive priority scheduling. Core dual-GPU meeting coordination is separately authorized now; live activation remains separately approved.
 - A queue database, distributed scheduler, new dashboard, or website-upload integration.
 
 If producing a usable summary is blocked only by unfinished infrastructure, use a separately approved controlled GPU window and the existing map/reduce workflow. The operator reviews and manually uploads the result. Record the manual-upload milestone only on explicit operator confirmation; the integration milestone still needs its own coexistence tests. No website configuration or verification is required from Codex.
@@ -50,7 +50,7 @@ If producing a usable summary is blocked only by unfinished infrastructure, use 
 
 The conversation reports working map/reduce minutes, two separate ComfyUI services, existing AI-HUB-local GPU locks, successful 96K Q8 operation on GPU1, and a successful dual-GPU benchmark. The supplied integration review identified asynchronous completion, cleanup, application concurrency, and crash-recovery gaps. It was a read-only review, not proof that the proposed runner is deployed.
 
-**Verify the live baseline before editing.** In particular, Ollama was temporarily exposed to both GPUs for benchmarking. Its current device configuration must be checked; a GPU1 lock does not constrain Ollama's device selection. Ollama can choose among visible GPUs or spread a model across them. [1]
+**Latest operator-reported baseline (2026-10-09):** Runner installed and bootstrapped on AI-HUB, journal ready with no active owners, Ollama restored to GPU1-only. Routine Ollama uses GPU1; WhisperX/wallpaper/music use GPU0. Exact installed runner version/config/scope and hardware facts require fresh approved inspection before deployment. This report supersedes earlier undeployed/dual-exposure assumptions; a GPU1 lock does not constrain Ollama's device selection. Ollama can choose among visible GPUs or spread a model across them. [1]
 
 Record actual application hosts, container versions, deployment mounts, backend addresses, lock paths/permissions, and repository commits privately. Development folder names do not establish where a service runs. Do not copy credentials, real meeting excerpts, participant rosters, or machine-specific GPU identifiers into public examples.
 
@@ -80,7 +80,7 @@ Maintain this canonical roadmap in aihub-gpu-runner. The shared Automations/road
 | G1 — Gateway implementation | Compatible interactive Ollama interface using the same coordinator | After reliable coexistence is accepted and the operator explicitly confirms manual upload |
 | G2 — Client migration | AnythingLLM, Open WebUI, and Continue validated individually | After G1 |
 | A1 — Advanced GPU coordination stabilization | Advanced coordination proven stable under separately approved scope | After G2; operator acceptance required |
-| D1 — Optional dual-GPU mode | Controlled two-resource acquisition, switching, and restoration | After gateway stabilization; separately approved advanced work, or explicitly deferred |
+| R2-D — Core dual-GPU meeting session | Atomic two-resource session, controlled CDI activation, verified GPU1 restoration and journal-preserving scope transition | Next checkpoint; offline implementation/testing only, then operator review and separate live approval |
 | W1 — Automatic website draft upload | Drafts uploaded for operator review; no automatic publication | **Final phase only**, after runner, pipeline, gateway/client migration, and advanced coordination are accepted as stable; approved D1 work must be stable or explicitly deferred |
 
 A passing test suite is necessary, but does not replace live workflow acceptance or the operator's explicit manual-upload confirmation for the gateway gate. Codex performs no website verification for that confirmation. Website configuration cannot block R0–R3 GPU/pipeline development or verification. Do not treat an earlier review's commit hashes as the current deployment state.
@@ -106,7 +106,15 @@ A passing test suite is necessary, but does not replace live workflow acceptance
 
 **Objective:** Implement resource coordination once, with small adapters in its callers.
 
-**Current authorization:** R1 Linux/WSL checkpoint accepted for continued offline development. The R2 meeting slice is accepted for continued offline development. The dashboard slice is accepted for continued offline development. Current work is the bounded daily-wakeup-song adapter and mocked/native Linux tests. Stop after music for review; no deployment, service changes, jobs, caller resumption, cron edits, commits or pushes are authorized. Keep Open WebUI, AnythingLLM, dashboard-gen and wake-songservice stopped; HA GPU automations, Continue and HA voice remain paused. Keep both ComfyUI containers running without jobs. Do not restore callers for offline R2 tests. Live GPU work, caller resumption, installation/deployment, service changes and GPU reassignment require separate authorization.
+**Current authorization:** Implement/test the bounded R2-D dual-GPU meeting
+session offline. All three R2 application adapters are accepted offline; the
+meeting approved-input identity and historical command remain tested software
+requirements, not live acceptance. The operator reports a ready/bootstrapped
+installed runner with no active owners and GPU1-only Ollama. Do not deploy this
+delta, restart services, change GPU configuration or production journal, run
+inference, resume callers, modify cron, commit or push. Preserve current stopped/
+paused callers and both separate running ComfyUI containers. Stop for review.
+
 
 Preserve the existing map/reduce pipeline, GPU stage boundaries, models, prompts, speakers, recap, audio deletion and HA behavior. The accepted meeting boundary uses shared Admission. The dashboard and music slices use this repository’s reusable job client and CPU output guard; GPU ownership remains exclusively in the existing runner. No second reservation system, preflight/flock gap or nested GPU lock is acceptable. Offline implementation is not live integration acceptance.
 
@@ -158,9 +166,11 @@ expected MP3 and calibrated cleanup precede release. Stable client IDs, private
 persistent status, archive/promotion before waits and atomic publication preserve
 the existing song and HA interface. No scheduler/runner redesign is authorized.
 
-**Current checkpoint:** Close the two meeting software requirements below, then
-stop for operator review. The bounded [R2 deployment proposal](docs/r2-deployment-plan.md)
-is prepared only; none of its installation, live-test or operational steps has run.
+**Current checkpoint:** R2-D core dual-GPU meeting session, implemented/tested
+offline and ready for review. See [dual session and deployment steps](docs/dual-meeting-session.md).
+The earlier [R2 deployment proposal](docs/r2-deployment-plan.md) is retained as
+historical planning; its undeployed-runner assumption is superseded by the latest
+operator report. None of this checkpoint's operational steps has executed.
 
 **Meeting software pre-deployment requirements (implemented/tested offline; review pending):**
 
@@ -186,6 +196,36 @@ verified caller exclusion; individually approved windows and live test inputs.
 No offline count closes these gates. Execute no deployment steps until separately
 approved, then stop at each gate: runner → meeting → wallpaper → music → contention.
 Do not resume stopped callers or alter intentionally disabled cron automatically.
+
+### R2-D — Core dual-GPU meeting summarization
+
+Dedicated explicit Ollama target: both physical GPUs under one shared Admission
+transaction/lease for the entire existing map/reduce/recap session. Routine GPU1
+Ollama and GPU0 WhisperX/wallpaper/music remain unchanged. No per-model-call
+switching, nested reservation system, new scheduler or meeting algorithm/prompt
+change. The target is local-session-only; routine API callers cannot trigger it.
+
+- [x] Explicit trusted dual target/policy, calibrated physical bindings, pinned
+  image/Compose definitions and approval reference; unconfigured targets fail closed.
+- [x] All-or-none original native locks and durable paired owners across every
+  request, model unloading, backend readiness and verified GPU1 restoration.
+- [x] Interrupted switching, unknown model work, cleanup/restoration/persistence
+  failures retain both owners; no automatic replay or restoration of uncertainty.
+- [x] Explicit local operator restoration retains owners; separate exact recovery
+  requires stored original-placement proof. Normal single-GPU contracts preserved.
+- [x] Idle additive scope transition and exact rollback preserve ready/bootstrap,
+  journal/history, jobs/results and physical lock identities; no reset/deletion.
+- [x] Synthetic native Linux contention/interruption/cleanup/restoration/rollback
+  tests and normal meeting/wallpaper/music regressions passed (private evidence).
+
+Checkmarks are offline software/test evidence only. Before the installed AI-HUB
+runner changes, approve fresh baseline bindings, caller exclusion, measured GPU0/
+GPU1 idle/cleanup ceilings with both ComfyUI contexts, versioned package/config
+delta and transition evidence. Stop idle supervisors/resolve nonfinal jobs before
+the explicit transition; never overwrite current ownership with an old backup.
+Approve live activation/inference/restoration and coexistence tests separately.
+Actual 192K GPU-resident placement must be verified in that approved deployment.
+Gateway, website and experimental whole-meeting extraction do not gate this work.
 
 The inspected integration points below are starting locations, not permission to rewrite surrounding application logic. Recheck their current signatures before editing.
 
@@ -274,23 +314,20 @@ On disconnect, cancel queued work where appropriate. Once backend inference has 
 
 **Gateway acceptance:** All configured local generation/embedding paths use the coordinator; streaming and cancellations behave correctly; meeting, wallpaper, and music regression tests still pass. Restrict direct backend access only after migrated paths and administrative recovery access are verified. Do not call the system globally coordinated while bypass paths remain active.
 
-## 9. A1/D1 — Advanced GPU coordination and optional dual-GPU operation
+## 9. A1 — Later advanced GPU coordination
 
-**A1 stability gate:** After the gateway and all three client migrations are stable, verify advanced GPU coordination under separately approved scope and record operator acceptance. The runner, meeting/wallpaper/music pipeline, and gateway must retain their accepted behavior. Do not expand current R0 work to design or implement advanced policies.
+Core dual-GPU meeting sessions are now R2-D, before gateway work, and must become
+stable with the normal meeting/wallpaper/music workflows under separately approved
+live tests. They are not an optional feature deferred until gateway stabilization.
 
-D1 remains optional and separately approved. Before W1 begins, any approved dual-GPU work must be proven stable, or the operator must explicitly defer it; optional D1 is not silently treated as a completed checkpoint.
-
-The runner's resource model should accommodate a resource set from the start, but automatic mode switching is not part of R0–R3.
-
-After gateway stabilization, a separately approved job may reserve `{GPU0, GPU1}`, block incompatible admissions, drain active requests, verify backend quiescence, enable the dual-GPU configuration, run, unload, restore GPU1-only operation, and verify readiness before release. Use a deadlock-free acquisition policy; do not describe two sequential `flock` calls as an atomic OS primitive.
-
-All generations, including direct clients, must be controlled during a mode switch. Failed restoration or uncertain cleanup keeps the affected resources blocked for recovery. Verify that ComfyUI and WhisperX resume normally afterward. Do not alter model volumes or other service settings during switching.
-
-Neither sharding nor a larger context fixes the abandoned whole-meeting extraction's tendency to overproduce evidence. Reopening that experiment requires a separate outcome and approval.
+Other advanced policies remain later and separately scoped. After the gateway and
+interactive migrations stabilize, record acceptance of any approved advanced work
+without changing the accepted core session/admission/recovery behavior. Do not
+reopen experimental whole-meeting extraction or expand this checkpoint.
 
 ## 10. W1 — Automatic website draft upload, final phase only
 
-**Deferred final phase:** Begin only after the GPU runner, working meeting/wallpaper/music pipeline, Ollama gateway and Open WebUI/AnythingLLM/Continue migration, and advanced GPU coordination have been proven stable and accepted by the operator. Approved optional D1 work must also be stable or explicitly deferred.
+**Deferred final phase:** Begin only after the GPU runner, working meeting/wallpaper/music pipeline, Ollama gateway and Open WebUI/AnythingLLM/Continue migration, and advanced GPU coordination have been proven stable and accepted by the operator. Core R2-D dual-GPU meeting operation must also have accepted live stability.
 
 Future automation must upload **drafts for operator review only** and must **never automatically publish**. The operator retains review, correction, redaction, and publication control.
 
@@ -312,11 +349,11 @@ Return a reviewable diff, test totals, unresolved risks, deployment/rollback ste
 
 | Field | Record |
 |---|---|
-| Current checkpoint | R2 — meeting approved-input identity and historical command corrections tested offline; deployment proposal prepared; stop for review |
+| Current checkpoint | R2-D — core dual-GPU meeting session and journal-preserving scope transition tested offline; stop for review |
 | Last accepted checkpoint | R2 music adapter accepted for continued offline development; meeting/dashboard accepted offline; no live authorization |
-| Runner deployed version | None — local runner and meeting/dashboard/music adapter code only |
+| Runner deployed version | Operator reports installed/bootstrapped AI-HUB runner, ready with no owners; exact version/scope pending approved inspection; dual checkpoint delta not deployed |
 | Application/meeting deployed versions | Verify and record privately |
-| Integration test evidence | R1 Windows 45/17 and Linux 45/17 plus native probes 7/2 passed; R2 Linux 438 run / 437 passed / 1 optional private audit skipped; runner 45/17 passed; dashboard Linux 24 passed; music Linux 24 passed with preserved dashboard 24, meeting-admission 17 and runner 45/17 regressions; meeting corrections Linux full 450 run / 449 passed / 1 optional private audit skipped, final focused 13 passed, runner 45/17 passed; live integration pending |
+| Integration test evidence | R1 Windows 45/17 and Linux 45/17 plus native probes 7/2 passed; R2 Linux 438 run / 437 passed / 1 optional private audit skipped; runner 45/17 passed; dashboard Linux 24 passed; music Linux 24 passed with preserved dashboard 24, meeting-admission 17 and runner 45/17 regressions; meeting corrections Linux full 450 run / 449 passed / 1 optional private audit skipped, final focused 13 passed, runner 45/17 passed; R2-D final Linux runner 73/19 passed (28 new dual/scope cases), meeting full 451 run / 450 passed / 1 optional audit skipped plus final focused 30 passed, wallpaper 24 and music 24 passed; live integration pending |
 | Reviewed meeting artifact | Pending |
 | Operator manual-upload confirmation | Pending — completed only on explicit operator confirmation; no Codex website check |
 | R3 operator acceptance | Pending — gateway requires accepted coexistence and explicit manual-upload confirmation |
@@ -324,7 +361,7 @@ Return a reviewable diff, test totals, unresolved risks, deployment/rollback ste
 | Automatic website upload | W1 final phase, deferred; drafts only, never automatic publication |
 | Caller state | Four application/client containers stopped; HA GPU automations, Continue and HA voice paused; both ComfyUI backends running with no jobs authorized |
 | Docker-restart cron | Intentionally disabled indefinitely by operator decision 2026-10-08; original backup retained; restore only on explicit operator request |
-| Next authorized action | Operator review of meeting corrections and bounded R2 deployment proposal; separate approval required for every live gate; no live jobs, deployment, services, caller resumption or cron edits |
+| Next authorized action | Operator review of R2-D offline diff/tests/scope transition and deployment steps; separate approval for live inspection, installation, service changes, switching and inference; no current live work |
 
 ## 12. References and provenance
 

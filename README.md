@@ -1,20 +1,24 @@
-# AI-HUB GPU Runner — R2 offline integration checkpoint
+# AI-HUB GPU Runner — core dual-GPU meeting checkpoint
 
 One host-side coordinator for meeting, wallpaper and music GPU stages: file-backed
 jobs/ownership, existing persistent physical locks, named backend adapters and
 an authenticated internal job API. No extra queue/database, business-logic rewrite,
 Ollama gateway or website automation.
 
-Status: offline implementation for review. Nothing deployed; callers remain
-stopped/paused by operator decision. R0 GPU1-only restoration passed its after-check
-according to the operator. This package does not change GPU placement.
+Status: dual-session delta implemented/tested offline for review. The operator
+reports the runner installed/bootstrapped on AI-HUB, ready with no owners and
+Ollama restored to GPU1-only. Exact deployed version/scope require approved
+inspection. No live action was performed here. Keep callers stopped/paused.
+See [dual session and deployment steps](docs/dual-meeting-session.md) for explicit
+two-GPU sessions, controlled restoration and journal-preserving scope transition.
+Normal API callers remain GPU1/GPU0; they cannot submit to the dual session target.
 
 Meeting/dashboard/music slices are accepted for continued offline development.
 The approved-input meeting identity and historical launcher corrections are tested
 offline and await review. See the [bounded deployment proposal](docs/r2-deployment-plan.md);
 no installation, live test or deployment is authorized by that document.
 The music slice reuses the same job client and output guard, adding persistent
-application status and atomic byte publication; nothing is deployed.
+application status and atomic byte publication; this checkpoint does not deploy or modify callers.
 See [music client](docs/music-client.md), [dashboard client](docs/dashboard-client.md)
 and their still-open live/deployment gates.
 

@@ -49,6 +49,7 @@ class Target:
     acquisition_timeout: float = 3600
     execution_timeout: float = 1800
     cleanup_timeout: float = 60
+    mode_switch: dict | None = None
     def __post_init__(self):
         if (not isinstance(self.name, str) or not self.name or
                 self.kind not in ("ollama", "comfy") or
@@ -66,6 +67,11 @@ class Target:
             raise ValueError("invalid_backend_base")
         if not self.resources or set(self.resources) - {"gpu0", "gpu1"}:
             raise ValueError("invalid_target_resources")
+        if self.mode_switch is not None:
+            from .dual_gpu import validate_policy
+            if self.kind != 'ollama' or self.resources != ('gpu0', 'gpu1'):
+                raise ValueError('dual_session_resource_policy_required')
+            validate_policy(self.mode_switch)
         for value in (self.acquisition_timeout, self.execution_timeout, self.cleanup_timeout):
             if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
                 raise ValueError("invalid_deadline")

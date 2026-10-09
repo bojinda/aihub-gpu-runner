@@ -1,0 +1,32 @@
+{
+  "meeting-dual": {
+    "kind": "ollama",
+    "resources": ["gpu0", "gpu1"],
+    "base_url": "http://127.0.0.1:11434",
+    "models": ["qwen3.8:27b"],
+    "max_context": 196608,
+    "mode_switch": {
+      "docker": "/usr/bin/docker",
+      "nvidia_smi": "/usr/bin/nvidia-smi",
+      "project": "ollama",
+      "project_directory": "/approved/ollama",
+      "service": "ollama",
+      "container": "ollama",
+      "gpu1_compose": "/approved/ollama/compose.yml",
+      "dual_compose": "/approved/private/ollama-dual.yml",
+      "gpu1_sha256": "REQUIRED_REVIEWED_64_HEX_HASH",
+      "dual_sha256": "REQUIRED_REVIEWED_64_HEX_HASH",
+      "preserved_config_sha256": "REQUIRED_REVIEWED_64_HEX_HASH",
+      "runtime_contract_sha256": "REQUIRED_REVIEWED_64_HEX_HASH",
+      "image_id": "REQUIRED_REVIEWED_LOCAL_IMAGE_ID",
+      "compose_version": "REQUIRED_INSTALLED_VERSION",
+      "docker_version": "REQUIRED_INSTALLED_VERSION",
+      "ollama_version": "REQUIRED_INSTALLED_VERSION",
+      "gpu_uuids": {"gpu0": "REQUIRED_PHYSICAL_UUID", "gpu1": "REQUIRED_PHYSICAL_UUID"},
+      "idle_memory_mb": {"gpu0": null, "gpu1": null},
+      "cleanup_samples": 3,
+      "switch_timeout": 90,
+      "activation_approval_ref": "REQUIRED_OPERATOR_WINDOW_REFERENCE"
+    }
+  }
+}

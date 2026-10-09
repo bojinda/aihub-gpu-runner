@@ -12,6 +12,7 @@ import time
 from .backends import Execution, HTTPTransport, NvidiaMemoryProbe, OllamaBackend, CleanupPending
 from .config import admission_from_config
 from .core import Conflict, FINAL, NativeLock, RecoveryRequired, check_id, encode, timestamp, strict_json
+from .dual_gpu import ComposeOllamaSwitch, switch_binding
 
 
 class Interrupted(Exception):
@@ -87,11 +88,14 @@ def command_identity(argv, environment, inputs=None):
 class HostStage:
     """One stage lease, same durable journal/physical locks as Runner."""
     def __init__(self, admission, resource, job_id, request_hash, *, ollama_target=None,
-                 host_policy=None, transport_factory=HTTPTransport, probe=None, poll_interval=.05, input_files=None):
-        if resource not in ('gpu0', 'gpu1'):
+                 host_policy=None, transport_factory=HTTPTransport, probe=None, poll_interval=.05,
+                 input_files=None, switch_controller=None):
+        if resource not in ('gpu0', 'gpu1', 'gpu0+gpu1'):
             raise ValueError('invalid_host_resource')
-        if resource == 'gpu1' and (ollama_target is None or ollama_target.kind != 'ollama'
-                                   or ollama_target.resources != ('gpu1',)):
+        resources = ('gpu0', 'gpu1') if resource == 'gpu0+gpu1' else (resource,)
+        if resource != 'gpu0' and (ollama_target is None or ollama_target.kind != 'ollama'
+                                   or ollama_target.resources != resources or
+                                   resource == 'gpu0+gpu1' and ollama_target.mode_switch is None):
             raise ValueError('routine_ollama_target_required')
         policy = dict(host_policy or {})
         if resource == 'gpu0':
@@ -105,8 +109,11 @@ class HostStage:
                 raise ValueError('host_gpu0_cleanup_calibration_required')
         self.admission, self.store = admission, admission.store
         self.resource, self.job_id, self.request_hash = resource, check_id(job_id), request_hash
+        self.resources = resources
+        self.dual = resource == 'gpu0+gpu1'
+        self.is_ollama = resource != 'gpu0'
         self.target = ollama_target
-        self.target_name = ollama_target.name if resource == 'gpu1' else 'host-whisperx'
+        self.target_name = ollama_target.name if self.is_ollama else 'host-whisperx'
         self.policy, self.transport_factory = policy, transport_factory
         self.probe = probe or NvidiaMemoryProbe(0)
         self.poll_interval = poll_interval
@@ -114,6 +121,7 @@ class HostStage:
         self.instance = NativeLock(self.store.path('host-' + self.job_id + '.lock'))
         self.lease = None
         self.input_files = input_files or {}
+        self.switch = (switch_controller or ComposeOllamaSwitch(ollama_target)) if self.dual else None
 
     def update(self, **fields):
         with self.mutex.held():
@@ -127,17 +135,30 @@ class HostStage:
         requests = job.get('host_requests', [])
         if any(item['state'] != 'completed' for item in requests):
             raise RecoveryRequired('host_request_unresolved')
-        if self.resource == 'gpu1':
-            if requests and self.admission.snapshot()['owners'][self.resource]['phase'] not in (
+        if self.is_ollama:
+            if requests and self.admission.snapshot()['owners']['gpu1']['phase'] not in (
                     'host_requests_complete', 'cleanup_pending'):
                 raise RecoveryRequired('host_request_persistence_unconfirmed')
             backend = OllamaBackend(self.target, self.transport_factory(self.target.base_url))
             if requests:
                 backend.cleanup_models({item['model'] for item in requests},
                                        time.monotonic() + self.target.cleanup_timeout)
-            return {'completion_verified': True, 'cleanup_verified': True,
+            proof = {'completion_verified': True, 'cleanup_verified': True,
                     'policy': 'all_stage_requests_completed_then_owned_model_cleanup',
                     'request_count': len(requests)}
+            if self.dual:
+                # Only known-complete calls plus verified owned unload can reach restoration.
+                self.lease.mark('restore_intent')
+                restored = self.switch.restore()
+                if (any(restored.get(k) is not True for k in
+                        ('gpu1_restored', 'backend_ready', 'placement_verified')) or
+                        restored.get('mode') != 'gpu1' or restored.get('physical_gpus') != ['gpu1'] or
+                        restored.get('switch_binding') != switch_binding(self.target.mode_switch)):
+                    raise CleanupPending('dual_restoration_unconfirmed')
+                restored = dict(restored, job_id=self.job_id, lease_id=self.lease.owner['lease_id'])
+                self.update(dual_restoration_verified=restored)
+                proof.update(restored)
+            return proof
         deadline = time.monotonic() + self.policy.get('cleanup_timeout', 60)
         stable = 0
         while time.monotonic() < deadline:
@@ -155,6 +176,8 @@ class HostStage:
     def run(self, argv, environment, timeout=3600):
         if type(timeout) not in (int, float) or not math.isfinite(timeout) or timeout < 0:
             raise ValueError('AIHUB_GPU_LOCK_TIMEOUT must be nonnegative seconds')
+        if self.dual and environment.get('AIHUB_GPU_DUAL_APPROVAL') != self.target.mode_switch['activation_approval_ref']:
+            raise ValueError('explicit_dual_window_approval_required')
         if not input_sources_match(self.input_files):
             raise RecoveryRequired('stage_inputs_changed_before_admission')
         if not self.instance.acquire(0):
@@ -199,7 +222,9 @@ class HostStage:
                     self.store.put_job(old)
                     raise RecoveryRequired('existing_host_stage_requires_recovery_no_replay')
                 self.store.put_job({'request_id': self.job_id, 'request_hash': self.request_hash,
-                    'target': self.target_name, 'resources': [self.resource], 'host_stage': True,
+                    'target': self.target_name, 'resources': list(self.resources), 'host_stage': True,
+                    'dual_gpu_session': self.dual,
+                    'switch_binding': switch_binding(self.target.mode_switch) if self.dual else None,
                     'host_requests': [], 'state': 'waiting', 'error_code': None,
                     'created_at': timestamp(), 'updated_at': timestamp()})
             deadline = time.monotonic() + timeout
@@ -208,7 +233,7 @@ class HostStage:
                 # This method atomically checks journal, acquires physical lock,
                 # and durably claims ownership under the shared admission mutex.
                 self.lease = self.admission.try_acquire(self.job_id, self.request_hash,
-                                                       (self.resource,), self.target_name)
+                                                       self.resources, self.target_name)
                 if self.lease:
                     break
                 if not waited:
@@ -242,11 +267,23 @@ class HostStage:
                         self.store.write_bytes(name, item['data'])
                         snapshots[role] = str(self.store.path(name))
             self.update(input_bindings=input_fingerprints(self.input_files))
+            if self.dual:
+                # Persist intent first; an interrupted/ambiguous switch never restores itself.
+                self.lease.mark('switch_intent')
+                self.update(mode_phase='switch_intent')
+                activated = self.switch.activate()
+                if (activated.get('backend_ready') is not True or activated.get('placement_verified') is not True or
+                        activated.get('mode') != 'dual' or
+                        activated.get('physical_gpus') != ['gpu0', 'gpu1'] or
+                        activated.get('switch_binding') != switch_binding(self.target.mode_switch)):
+                    raise RecoveryRequired('dual_activation_not_verified')
+                self.update(mode_phase='dual_ready', activation_verified=activated)
             if snapshots:
                 environment = dict(environment, AIHUB_GPU_STAGE_INPUT_SNAPSHOTS=encode(snapshots).decode())
             environment = dict(environment, AIHUB_GPU_HOST_JOB_ID=self.job_id,
                                AIHUB_GPU_HOST_LEASE_ID=self.lease.owner['lease_id'],
-                               AIHUB_GPU_LOCK_HELD_FILE=str(self.admission.lock_paths[self.resource]))
+                               AIHUB_GPU_LOCK_HELD_FILE=str(self.admission.lock_paths['gpu1' if self.is_ollama else 'gpu0']),
+                               AIHUB_GPU_OLLAMA_TARGET=self.target_name if self.is_ollama else environment.get('AIHUB_GPU_OLLAMA_TARGET', 'ollama'))
             print('[gpu-lock] Acquired shared stage: ' + self.job_id, file=sys.stderr)
             child = subprocess.Popen(argv, env=environment, start_new_session=True, close_fds=True)
             code = child.wait()
@@ -259,7 +296,7 @@ class HostStage:
             # A negative wait status is interruption, never verified completion.
             if code < 0:
                 raise RecoveryRequired('host_child_interrupted')
-            if self.resource == 'gpu1':
+            if self.is_ollama:
                 requests = self.store.job(self.job_id)['host_requests']
                 phase = self.admission.snapshot()['owners']['gpu1']['phase']
                 if (any(item['state'] != 'completed' for item in requests) or
@@ -323,9 +360,11 @@ class HostOllamaClient:
         self.mutex = NativeLock(self.store.path('jobs.lock'))
 
     def owner(self):
-        owner = self.admission.snapshot()['owners'].get('gpu1', {})
+        owners = self.admission.snapshot()['owners']
+        owner = owners.get('gpu1', {})
         if (owner.get('job_id') != self.job_id or owner.get('lease_id') != self.lease_id
-                or owner.get('target') != self.target.name):
+                or owner.get('target') != self.target.name or
+                any(owners.get(r) != owner for r in self.target.resources)):
             raise RecoveryRequired('host_stage_context_not_owned')
         return owner
 
@@ -338,10 +377,15 @@ class HostOllamaClient:
             job = self.store.job(self.job_id)
             if job.get('host_stage') is not True or job['state'] != 'running':
                 raise RecoveryRequired('host_stage_not_running')
-            physical = NativeLock(self.admission.lock_paths['gpu1'])
-            if physical.acquire(0):
+            if self.target.mode_switch is not None and (job.get('dual_gpu_session') is not True or
+                                                       job.get('mode_phase') != 'dual_ready'):
+                raise RecoveryRequired('dual_session_activation_not_ready')
+            for resource in self.target.resources:
+                physical = NativeLock(self.admission.lock_paths[resource])
+                if physical.acquire(0):
+                    physical.close()
+                    raise RecoveryRequired('host_supervisor_lock_not_held')
                 physical.close()
-                raise RecoveryRequired('host_supervisor_lock_not_held')
             requests = job['host_requests']
             if (any(item['state'] != 'completed' for item in requests) or
                     requests and owner['phase'] != 'host_requests_complete'):
@@ -350,7 +394,7 @@ class HostOllamaClient:
                        'model': payload['model'], 'state': 'submit_intent'}
             requests.append(request)
             self.store.put_job(job)
-        self.admission._modify(owner, ('gpu1',), phase='host_request_submit_intent',
+        self.admission._modify(owner, self.target.resources, phase='host_request_submit_intent',
                                detail={'sequence': request['sequence'], 'model': payload['model']})
         # No retry here. A lost reply leaves submit_intent and the stage reserved.
         execution = self.backend.execute('generate', payload,
@@ -363,7 +407,7 @@ class HostOllamaClient:
                 raise RecoveryRequired('host_request_record_changed')
             current['state'] = 'completed'
             self.store.put_job(job)
-        self.admission._modify(owner, ('gpu1',), phase='host_requests_complete',
+        self.admission._modify(owner, self.target.resources, phase='host_requests_complete',
                                detail={'sequence': request['sequence'], 'model': payload['model']})
         return execution.value
 
@@ -391,7 +435,7 @@ def main():
                 raise ValueError('whisperx_gpu0_required')
         value, targets, admission = admission_from_config(os.environ['AIHUB_GPU_RUNNER_CONFIG'])
         resource = args.resource
-        if resource not in ('gpu0', 'gpu1'):
+        if resource not in ('gpu0', 'gpu1', 'gpu0+gpu1'):
             matches = [name for name, path in admission.lock_paths.items()
                        if path == Path(resource).resolve()]
             if len(matches) != 1:
@@ -403,10 +447,12 @@ def main():
                 raise ValueError('physical_lock_override_mismatch')
         inputs = capture_input_files(os.environ)
         identity = command_identity(args.command, os.environ, inputs)
-        request_hash = hashlib.sha256(encode({'resource': resource, 'command_identity': identity,
-                                              'scope': admission.scope})).hexdigest()
-        job_id = os.environ.get('AIHUB_GPU_STAGE_ID') or 'host-' + request_hash[:48]
         target = targets.get(os.environ.get('AIHUB_GPU_OLLAMA_TARGET', 'ollama'))
+        identity_value = {'resource': resource, 'command_identity': identity, 'scope': admission.scope}
+        if resource == 'gpu0+gpu1':
+            identity_value['ollama_target'] = None if target is None else target.name
+        request_hash = hashlib.sha256(encode(identity_value)).hexdigest()
+        job_id = os.environ.get('AIHUB_GPU_STAGE_ID') or 'host-' + request_hash[:48]
         stage = HostStage(admission, resource, job_id, request_hash, ollama_target=target,
                          host_policy=value.get('host_stages', {}).get('whisperx'), input_files=inputs)
         return stage.run(args.command, os.environ, float(os.environ.get('AIHUB_GPU_LOCK_TIMEOUT', '3600')))

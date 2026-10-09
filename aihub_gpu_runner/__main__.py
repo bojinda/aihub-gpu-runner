@@ -9,10 +9,20 @@ from .core import strict_json, timestamp
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True)
-    parser.add_argument("action", choices=("inspect", "bootstrap", "recover", "serve"))
+    parser.add_argument("action", choices=("inspect", "bootstrap", "recover", "serve", "transition-scope", "dual-restore"))
     parser.add_argument("--evidence-file")
     parser.add_argument("--job-id")
+    parser.add_argument("--new-config")
+    parser.add_argument("--rollback", action='store_true')
     args = parser.parse_args()
+    if args.action == 'transition-scope':
+        if not args.new_config or not args.evidence_file:
+            parser.error('new config and local operator evidence required')
+        from .scope_transition import transition_scope
+        with open(args.evidence_file, 'rb') as stream:
+            evidence = strict_json(stream.read())
+        print(json.dumps(transition_scope(args.config, args.new_config, evidence, rollback=args.rollback)))
+        return
     if args.action == "serve":
         value, runner = make_runner(args.config)
         try:
@@ -25,7 +35,7 @@ def main():
         finally:
             runner.close()
         return
-    _, _, admission = admission_from_config(args.config)
+    _, targets, admission = admission_from_config(args.config)
     if args.action == "inspect":
         print(json.dumps(admission.snapshot(), indent=2))
         return
@@ -35,6 +45,14 @@ def main():
         evidence = strict_json(stream.read())
     if args.action == "bootstrap":
         admission.bootstrap(evidence)
+    elif args.action == 'dual-restore':
+        if not args.job_id:
+            parser.error('exact held job ID required')
+        from .dual_gpu import restore_held
+        job = admission.store.job(args.job_id)
+        proof = restore_held(admission, targets[job['target']], args.job_id, evidence)
+        print(json.dumps({'recorded': 'dual-restore', 'owners_retained': True, 'proof': proof}))
+        return
     else:
         if not args.job_id:
             parser.error("job ID is required")

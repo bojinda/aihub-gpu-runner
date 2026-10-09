@@ -29,7 +29,8 @@ def load_config(path):
         check_id(name)
         settings = dict(settings)
         kind = settings["kind"]
-        required = ("gpu1",) if kind == "ollama" else ("gpu0",) if kind == "comfy" else None
+        required = (("gpu0", "gpu1") if kind == "ollama" and settings.get('mode_switch') is not None
+                    else ("gpu1",) if kind == "ollama" else ("gpu0",) if kind == "comfy" else None)
         if required is None or tuple(settings.get("resources", ())) != required:
             raise ValueError("routine_resource_policy_violation")
         workflow_path = settings.pop("workflow_template", None)
@@ -52,6 +53,12 @@ def load_config(path):
             raise ValueError("intended_comfy_output_required")
     if not targets or type(value.get("workers", 4)) is not int or not 2 <= value.get("workers", 4) <= 32:
         raise ValueError("invalid_targets_or_workers")
+    for target in targets.values():
+        if target.mode_switch is not None:
+            normal = [t for t in targets.values() if t.kind == 'ollama' and t.resources == ('gpu1',)
+                      and t.base_url.rstrip('/') == target.base_url.rstrip('/')]
+            if len(normal) != 1:
+                raise ValueError('dual_target_requires_one_routine_ollama_backend')
     token_env = value.get("auth_token_env", "AIHUB_GPU_RUNNER_TOKEN")
     if not isinstance(token_env, str) or not token_env or "=" in token_env:
         raise ValueError("invalid_token_environment_name")
@@ -68,6 +75,10 @@ def make_runner(path):
     value, targets, admission = admission_from_config(path)
     backends = {}
     for name, target in targets.items():
+        if target.mode_switch is not None:
+            from .dual_gpu import SessionOnlyBackend
+            backends[name] = SessionOnlyBackend()
+            continue
         transport = HTTPTransport(target.base_url)
         backends[name] = (OllamaBackend(target, transport) if target.kind == "ollama" else
                           ComfyBackend(target, transport, probe=NvidiaMemoryProbe(0)))

@@ -307,6 +307,18 @@ class Admission:
             if not matches:
                 raise ValueError("no_matching_owner")
             owner = next(iter(matches.values()))
+            job = self.store.read(self.store.job_name(job_id), {})
+            if job.get('dual_gpu_session') is True:
+                proof = job.get('dual_restoration_verified', {})
+                if (set(matches) != {'gpu0', 'gpu1'} or
+                        any(evidence.get(k) is not True or proof.get(k) is not True
+                            for k in ('gpu1_restored', 'backend_ready', 'placement_verified')) or
+                        evidence.get('switch_binding') != job.get('switch_binding') or
+                        proof.get('switch_binding') != job.get('switch_binding') or
+                        proof.get('lease_id') != owner['lease_id'] or proof.get('job_id') != job_id):
+                    raise ValueError('dual_gpu1_restoration_evidence_required')
+                if proof.get('mode') != 'gpu1' or proof.get('physical_gpus') != ['gpu1']:
+                    raise ValueError('dual_original_placement_proof_required')
             if (not evidence.get("approval_ref") or
                     evidence.get("operator_approved_backend_recovery") is not True or
                     evidence.get("backend_quiescent") is not True or
@@ -400,6 +412,8 @@ class Runner:
                 or target not in self.targets or not isinstance(payload, dict)):
             raise ValueError("invalid_target_or_payload")
         self.backends[target].validate(operation, payload)
+        if self.targets[target].mode_switch is not None:
+            raise ValueError('dual_target_requires_local_meeting_session')
         request_hash = hashlib.sha256(encode({"target": target, "operation": operation,
                                               "payload": payload})).hexdigest()
         with self.job_mutex.held():

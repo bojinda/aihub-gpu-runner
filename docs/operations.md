@@ -41,6 +41,13 @@ Local CLI actions (future operational approval required):
 These commands do not install/restart services or automate backend recovery.
 Do not delete state to fix a changed scope or bypass uncertain ownership.
 
+`migrate-physical-locks` is a separate Linux-only maintenance command for two missing
+physical locks and one retained unresolved GPU0 Comfy owner. It never recreates
+files, activates config, modifies jobs or releases ownership. See the reviewed
+[physical-lock migration design and operator procedure](physical-lock-migration.md).
+Persistent physical locks belong under the private state directory, with explicit
+mount ordering; `/tmp` and runtime directories are unsuitable for inode persistence.
+
 The local `transition-scope` action is explicitly idle-only and additive for this
 checkpoint: it appends history and updates scope under original paired native
 locks, preserving ready/bootstrap/jobs/results. It requires an excluded/approved

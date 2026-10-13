@@ -43,7 +43,7 @@ def transition_scope(old_config, new_config, evidence, *, rollback=False):
             for resource, path in sorted(old_locks.items()):
                 if not path.is_file() or lock_identity(path.stat()) != state['lock_identity'][resource]:
                     raise RecoveryRequired('physical_lock_identity_changed')
-                lock = NativeLock(path)
+                lock = NativeLock(path, create=False)
                 if not lock.acquire(0):
                     raise RecoveryRequired('scope_transition_resource_busy')
                 locks.append(lock)

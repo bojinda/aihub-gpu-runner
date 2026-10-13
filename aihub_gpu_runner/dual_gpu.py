@@ -240,7 +240,7 @@ def restore_held(admission, target, job_id, evidence, controller=None):
                 path = admission.lock_paths[r]
                 if lock_identity(path.stat()) != admission.snapshot()['lock_identity'][r]:
                     raise RecoveryRequired('physical_lock_identity_changed')
-                lock = NativeLock(path)
+                lock = NativeLock(path, create=False)
                 if not lock.acquire(0):
                     raise RecoveryRequired('dual_supervisor_still_active')
                 locks.append(lock)

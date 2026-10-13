@@ -9,12 +9,20 @@ from .core import strict_json, timestamp
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True)
-    parser.add_argument("action", choices=("inspect", "bootstrap", "recover", "serve", "transition-scope", "dual-restore"))
+    parser.add_argument("action", choices=("inspect", "bootstrap", "recover", "serve", "transition-scope", "dual-restore", "migrate-physical-locks"))
     parser.add_argument("--evidence-file")
     parser.add_argument("--job-id")
     parser.add_argument("--new-config")
     parser.add_argument("--rollback", action='store_true')
     args = parser.parse_args()
+    if args.action == 'migrate-physical-locks':
+        if not args.new_config or not args.evidence_file or not args.job_id or args.rollback:
+            parser.error('old/new configs, exact job and migration evidence required; no rollback')
+        from .lock_migration import migrate_physical_locks
+        with open(args.evidence_file, 'rb') as stream:
+            evidence = strict_json(stream.read())
+        print(json.dumps(migrate_physical_locks(args.config, args.new_config, args.job_id, evidence)))
+        return
     if args.action == 'transition-scope':
         if not args.new_config or not args.evidence_file:
             parser.error('new config and local operator evidence required')

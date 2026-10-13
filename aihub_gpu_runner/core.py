@@ -58,8 +58,9 @@ def timestamp():
 
 class NativeLock:
     """Persistent file identity; Linux flock, Windows byte lock for offline tests."""
-    def __init__(self, path):
+    def __init__(self, path, *, create=True):
         self.path = Path(path)
+        self.create = create
         self.fd = None
         with _THREAD_GUARD:
             self.local = _THREAD_LOCKS.setdefault(str(self.path.resolve()), threading.Lock())
@@ -73,8 +74,16 @@ class NativeLock:
             return False
         fd = None
         try:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            fd = os.open(self.path, os.O_RDWR | os.O_CREAT | getattr(os, "O_CLOEXEC", 0), 0o600)
+            if self.create:
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+            flags = os.O_RDWR | getattr(os, "O_CLOEXEC", 0)
+            if not self.create:
+                flags |= getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+            fd = os.open(self.path, flags | (os.O_CREAT if self.create else 0), 0o600)
+            if not self.create:
+                import stat
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    raise RecoveryRequired("physical_lock_not_regular_file")
             os.set_inheritable(fd, False)
             while True:
                 try:
@@ -100,6 +109,40 @@ class NativeLock:
                 os.close(fd)
             self.local.release()
             raise
+    def is_held(self, expected_identity):
+        """Probe OS contention on an identity-checked FD, without the local cache."""
+        import stat
+        flags = os.O_RDWR | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+        fd = os.open(self.path, flags)  # Existing physical file only; never recreate.
+        acquired = False
+        try:
+            value = os.fstat(fd)
+            if not stat.S_ISREG(value.st_mode) or lock_identity(value) != expected_identity:
+                raise RecoveryRequired("physical_lock_identity_changed_during_acquisition")
+            try:
+                if os.name == "nt":
+                    import msvcrt
+                    msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                acquired = True
+            except OSError as exc:
+                if exc.errno not in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+                    raise
+                if lock_identity(os.fstat(fd)) != expected_identity:
+                    raise RecoveryRequired("physical_lock_identity_changed_during_acquisition")
+                return True
+            return False
+        finally:
+            try:
+                if acquired:
+                    if os.name == "nt":
+                        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                    else:
+                        fcntl.flock(fd, fcntl.LOCK_UN)
+            finally:
+                os.close(fd)
     def close(self):
         if self.fd is None:
             return
@@ -118,7 +161,7 @@ class NativeLock:
     @contextlib.contextmanager
     def held(self, timeout=5):
         # A context object is shared by worker threads; descriptors are not.
-        lease = NativeLock(self.path)
+        lease = NativeLock(self.path, create=self.create)
         if not lease.acquire(timeout):
             raise TimeoutError("local_lock_timeout")
         try:
@@ -206,6 +249,12 @@ class Admission:
                     "bootstrap_id": uuid.uuid4().hex, "owners": {}})
             else:
                 self._validate(current)
+                if require_existing_locks and current["ready"]:
+                    self._check_physical_identities(current)
+    def _check_physical_identities(self, state):
+        for resource, path in self.lock_paths.items():
+            if (not path.is_file() or lock_identity(path.stat()) != state["lock_identity"][resource]):
+                raise RecoveryRequired("physical_lock_identity_changed")
     def _validate(self, state):
         if (not isinstance(state, dict) or state.get("schema") != 1 or
                 state.get("scope") != self.scope or type(state.get("ready")) is not bool or
@@ -238,11 +287,14 @@ class Admission:
                 for resource, path in sorted(self.lock_paths.items()):
                     if self.require_existing_locks and not path.is_file():
                         raise RecoveryRequired("existing_physical_lock_missing")
-                    lock = NativeLock(path)
+                    lock = NativeLock(path, create=not self.require_existing_locks)
                     if not lock.acquire(0):
                         raise RecoveryRequired("bootstrap_resource_busy")
                     locks.append(lock)
-                state["lock_identity"] = {r: lock_identity(p.stat()) for r, p in self.lock_paths.items()}
+                identities = {r: lock_identity(os.fstat(lock.fd))
+                              for r, lock in zip(sorted(self.lock_paths), locks)}
+                self._check_physical_identities({"lock_identity": identities})
+                state["lock_identity"] = identities
                 state["ready"] = True
                 state["bootstrap_evidence"] = dict(evidence, provenance="local_operator_attestation")
                 self.store.write("ownership.json", state)
@@ -265,7 +317,7 @@ class Admission:
                     if (not path.is_file() or lock_identity(path.stat()) !=
                             state["lock_identity"][resource]):
                         raise RecoveryRequired("physical_lock_identity_changed")
-                    lock = NativeLock(self.lock_paths[resource])
+                    lock = NativeLock(self.lock_paths[resource], create=False)
                     if not lock.acquire(0):
                         for previous in reversed(locks):
                             previous.close()
@@ -334,10 +386,12 @@ class Admission:
                     if (not path.is_file() or lock_identity(path.stat()) !=
                             state["lock_identity"][resource]):
                         raise RecoveryRequired("physical_lock_identity_changed")
-                    lock = NativeLock(self.lock_paths[resource])
+                    lock = NativeLock(self.lock_paths[resource], create=False)
                     if not lock.acquire(0):
                         raise RecoveryRequired("owner_still_active")
                     locks.append(lock)
+                    if lock_identity(os.fstat(lock.fd)) != state["lock_identity"][resource]:
+                        raise RecoveryRequired("physical_lock_identity_changed_during_acquisition")
                 state.setdefault("recoveries", []).append(dict(evidence, recovered_at=timestamp()))
                 for resource in matches:
                     del state["owners"][resource]

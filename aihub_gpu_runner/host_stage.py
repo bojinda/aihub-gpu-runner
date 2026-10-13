@@ -380,12 +380,11 @@ class HostOllamaClient:
             if self.target.mode_switch is not None and (job.get('dual_gpu_session') is not True or
                                                        job.get('mode_phase') != 'dual_ready'):
                 raise RecoveryRequired('dual_session_activation_not_ready')
+            identities = self.admission.snapshot()['lock_identity']
             for resource in self.target.resources:
-                physical = NativeLock(self.admission.lock_paths[resource])
-                if physical.acquire(0):
-                    physical.close()
+                physical = NativeLock(self.admission.lock_paths[resource], create=False)
+                if not physical.is_held(identities[resource]):
                     raise RecoveryRequired('host_supervisor_lock_not_held')
-                physical.close()
             requests = job['host_requests']
             if (any(item['state'] != 'completed' for item in requests) or
                     requests and owner['phase'] != 'host_requests_complete'):

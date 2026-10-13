@@ -1,0 +1,5 @@
+# REVIEW ONLY: approved AI-HUB persistent-state mount dependency.
+# Install as a systemd drop-in only during the separately approved migration.
+# Provision 0700 physical-locks directory / 0600 files explicitly; never via startup.
+[Unit]
+RequiresMountsFor=/home/bojinda/.local/state/aihub-gpu-runner

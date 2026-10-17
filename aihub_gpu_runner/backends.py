@@ -325,8 +325,10 @@ class ComfyBackend:
         try:
             if not self._queue_empty(deadline):
                 raise CleanupPending("unexpected_work_before_cleanup")
-            self.transport.ack("POST", "/free", {"unload_models": True, "free_memory": True},
-                                timeout=remaining(deadline, CleanupPending))
+            # Temporary wallpaper A/B: retain executor caches while unloading models.
+            self.transport.ack("POST", "/free",
+                {"unload_models": True, "free_memory": self.target.name != "wallpaper"},
+                timeout=remaining(deadline, CleanupPending))
             stable = 0
             while True:
                 remaining(deadline, CleanupPending)

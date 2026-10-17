@@ -16,13 +16,16 @@ from aihub_gpu_runner.core import Admission, AtomicStore, Runner
 
 @contextmanager
 def comfy_server(*, media="image", status=200, drop=False, free_body=b"",
-                 busy_before_free=False, busy_sample=None):
+                 busy_before_free=False, busy_sample=None, history="success", artifact_body=None):
     state = {"calls": [], "free_calls": 0, "history_calls": 0, "queue_calls": 0,
              "cleanup_queue_calls": 0, "free_payload": None}
     node, key = ("2", "images") if media == "image" else ("104", "audio")
     filename = "synthetic.png" if media == "image" else "synthetic.mp3"
     mime = "image/png" if media == "image" else "audio/mpeg"
     artifact = b"\x89PNG\r\n\x1a\nsynthetic" if media == "image" else b"ID3synthetic"
+
+    if artifact_body is not None:
+        artifact = artifact_body
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -65,9 +68,16 @@ def comfy_server(*, media="image", status=200, drop=False, free_body=b"",
                                            "queue_pending": []}).encode())
             elif route == "/history/owned-prompt":
                 state["history_calls"] += 1
+                if history == "unavailable":
+                    self.reply(503, b"")
+                    return
+                if history == "missing":
+                    self.reply(200, b"{}")
+                    return
                 terminal = state["history_calls"] > 1
                 self.reply(200, json.dumps({"owned-prompt": {
-                    "status": {"completed": terminal, "status_str": "success" if terminal else "running"},
+                    "status": {"completed": terminal and history != "error",
+                               "status_str": history if terminal else "running"},
                     "outputs": {node: {key: [{"filename": filename, "subfolder": "", "type": "output"}]}}
                 }}).encode())
             elif route == "/view":
@@ -87,7 +97,7 @@ def comfy_server(*, media="image", status=200, drop=False, free_body=b"",
 
 
 @contextmanager
-def runner_for(url, media, probe, *, cleanup_timeout=.5):
+def runner_for(url, media, probe, *, cleanup_timeout=.5, execution_timeout=1, target_name=None):
     with tempfile.TemporaryDirectory(prefix="comfy-ack-") as directory:
         root = Path(directory)
         paths = {r: root / (r + ".lock") for r in ("gpu0", "gpu1")}
@@ -98,11 +108,12 @@ def runner_for(url, media, probe, *, cleanup_timeout=.5):
                         "backend_quiescent": True, "cleanup_verified": True})
         name, node, key, mime = (("wallpaper", "2", "images", "image/png") if media == "image" else
                                  ("music", "104", "audio", "audio/mpeg"))
+        name = target_name or name
         workflow = {node: {"class_type": "SaveImage" if media == "image" else "SaveAudioMP3",
                            "inputs": {"filename_prefix": "synthetic"}}}
         target = Target(name, "comfy", ("gpu0",), url, workflow=workflow, output_node=node,
                         output_key=key, media_type=mime, idle_memory_mb=1200, cleanup_samples=3,
-                        acquisition_timeout=1, execution_timeout=1, cleanup_timeout=cleanup_timeout)
+                        acquisition_timeout=1, execution_timeout=execution_timeout, cleanup_timeout=cleanup_timeout)
         backend = ComfyBackend(target, HTTPTransport(url), probe=probe, poll_interval=.001)
         runner = Runner(gate, {name: target}, {name: backend}, poll_interval=.001)
         try:
@@ -138,8 +149,9 @@ class CleanupAcknowledgementTests(unittest.TestCase):
             self.assertEqual(caught.exception.code, "backend_response_too_large")
 
     def test_empty_free_ack_releases_both_targets_only_after_three_consecutive_idle_samples(self):
-        for media in ("image", "audio"):
-            with self.subTest(media=media), comfy_server(media=media) as (url, state):
+        for media, name, free_memory in (("image", "wallpaper", False), ("audio", "music", True),
+                                        ("image", "wallpaper-preview", True)):
+            with self.subTest(target=name), comfy_server(media=media) as (url, state):
                 samples = iter([879, 1300, 879, 879, 879])
                 observed = []
                 def probe():
@@ -151,7 +163,7 @@ class CleanupAcknowledgementTests(unittest.TestCase):
                     self.assertEqual(gate.snapshot()["owners"]["gpu0"]["phase"], "cleanup_pending")
                     self.assertIsNone(gate.try_acquire("other", "hash", ("gpu0",), "other"))
                     return value
-                with runner_for(url, media, probe) as (runner, gate, target):
+                with runner_for(url, media, probe, target_name=name) as (runner, gate, target):
                     runner.submit("owned-job", target.name, "workflow", target.workflow)
                     runner.future("owned-job").result(timeout=3)
                     job = runner.status("owned-job")
@@ -161,10 +173,60 @@ class CleanupAcknowledgementTests(unittest.TestCase):
                     self.assertEqual(job["cleanup_proof"]["memory_mb"], 879)
                     self.assertEqual(gate.snapshot()["owners"], {})
                     self.assertEqual(state["free_calls"], 1)
-                    self.assertEqual(state["free_payload"], {"unload_models": True, "free_memory": True})
+                    self.assertEqual(state["free_payload"], {"unload_models": True, "free_memory": free_memory})
                     self.assertEqual(state["history_calls"], 2)
                     self.assertLess(state["calls"].index(("GET", "/view")), state["calls"].index(("POST", "/free")))
                     self.assertTrue(runner.artifact("owned-job"))
+
+    def test_wallpaper_terminal_failure_and_bad_artifact_require_cleanup_before_release(self):
+        cases = (("error", None, "comfy_execution_failed", 0),
+                 ("success", b"not-a-png", "artifact_retrieval_or_validation_failed", 1))
+        for history, artifact_body, error, views in cases:
+            with self.subTest(history=history), comfy_server(
+                    history=history, artifact_body=artifact_body) as (url, state):
+                observed = []
+                def probe():
+                    if state["free_calls"]:
+                        owner = gate.snapshot()["owners"]["gpu0"]
+                        self.assertEqual(owner["job_id"], "owned-job")
+                        self.assertEqual(owner["phase"], "cleanup_pending")
+                        self.assertIsNone(gate.try_acquire("other", "hash", ("gpu0",), "other"))
+                        observed.append(879)
+                    return 879
+                with runner_for(url, "image", probe) as (runner, gate, target):
+                    runner.submit("owned-job", target.name, "workflow", target.workflow)
+                    runner.future("owned-job").result(timeout=3)
+                    job = runner.status("owned-job")
+                    self.assertEqual(job["state"], "failed", job)
+                    self.assertEqual(job["error_code"], error)
+                    self.assertTrue(job["completion_verified"])
+                    self.assertTrue(job["cleanup_verified"])
+                    self.assertEqual(job["cleanup_proof"]["stable_samples"], 3)
+                    self.assertEqual(observed, [879, 879, 879])
+                    self.assertEqual(state["free_payload"], {"unload_models": True, "free_memory": False})
+                    self.assertEqual(state["free_calls"], 1)
+                    self.assertEqual(state["calls"].count(("GET", "/view")), views)
+                    self.assertEqual(gate.snapshot()["owners"], {})
+                    with self.assertRaises(KeyError):
+                        runner.artifact("owned-job")
+
+    def test_wallpaper_uncertain_history_never_frees_or_releases_owner(self):
+        for history in ("unavailable", "missing", "unknown"):
+            with self.subTest(history=history), comfy_server(history=history) as (url, state):
+                with runner_for(url, "image", lambda: 879, execution_timeout=.2) as (runner, gate, target):
+                    runner.submit("owned-job", target.name, "workflow", target.workflow)
+                    runner.future("owned-job").result(timeout=3)
+                    job = runner.status("owned-job")
+                    self.assertEqual(job["state"], "reconciling", job)
+                    self.assertGreater(state["history_calls"], 0)
+                    self.assertEqual(state["free_calls"], 0)
+                    self.assertNotIn(("GET", "/view"), state["calls"])
+                    self.assertFalse(job.get("cleanup_verified", False))
+                    owner = gate.snapshot()["owners"]["gpu0"]
+                    self.assertEqual(owner["job_id"], "owned-job")
+                    self.assertEqual(owner["lease_id"], job["lease_id"])
+                    self.assertEqual(owner["phase"], "reconciling")
+                    self.assertIsNone(gate.try_acquire("other", "hash", ("gpu0",), "other"))
 
     def test_failed_free_http_ack_keeps_cleanup_pending_and_durable_owner(self):
         for status, drop in ((403, False), (500, False), (302, False), (200, True)):

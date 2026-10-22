@@ -9,7 +9,9 @@ from .core import strict_json, timestamp
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True)
-    parser.add_argument("action", choices=("inspect", "bootstrap", "recover", "serve", "transition-scope", "dual-restore", "migrate-physical-locks"))
+    parser.add_argument("action", choices=("inspect", "bootstrap", "recover", "serve",
+                        "transition-scope", "dual-restore", "migrate-physical-locks",
+                        "transition-wallpaper-workflow"))
     parser.add_argument("--evidence-file")
     parser.add_argument("--job-id")
     parser.add_argument("--new-config")
@@ -23,13 +25,14 @@ def main():
             evidence = strict_json(stream.read())
         print(json.dumps(migrate_physical_locks(args.config, args.new_config, args.job_id, evidence)))
         return
-    if args.action == 'transition-scope':
+    if args.action in ('transition-scope', 'transition-wallpaper-workflow'):
         if not args.new_config or not args.evidence_file:
             parser.error('new config and local operator evidence required')
-        from .scope_transition import transition_scope
+        from .scope_transition import transition_scope, transition_wallpaper_workflow
         with open(args.evidence_file, 'rb') as stream:
             evidence = strict_json(stream.read())
-        print(json.dumps(transition_scope(args.config, args.new_config, evidence, rollback=args.rollback)))
+        transition = transition_wallpaper_workflow if args.action == 'transition-wallpaper-workflow' else transition_scope
+        print(json.dumps(transition(args.config, args.new_config, evidence, rollback=args.rollback)))
         return
     if args.action == "serve":
         value, runner = make_runner(args.config)

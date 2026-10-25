@@ -1,0 +1,39 @@
+{
+  "scope": "REPLACE_WITH_ACTIVE_CONFIGURATION_SCOPE",
+  "boot_startup": "verified_reboot_once",
+  "docker": "/usr/bin/docker",
+  "nvidia_smi": "/usr/bin/nvidia-smi",
+  "journalctl": "/usr/bin/journalctl",
+  "wallpaper": "REPLACE_WITH_FULL_WALLPAPER_CONTAINER_ID",
+  "gpu_uuids": {"gpu0": "REPLACE_WITH_PHYSICAL_GPU0_UUID", "gpu1": "REPLACE_WITH_PHYSICAL_GPU1_UUID"},
+  "services": {
+    "wallpaper": {
+      "name": "comfyui-wallpaper", "id": "REPLACE_WITH_FULL_WALLPAPER_CONTAINER_ID",
+      "identity_mode": "exact",
+      "image": "REPLACE_WITH_IMAGE_ID", "contract_sha256": "REPLACE_WITH_INSPECT_CONTRACT_HASH",
+      "idle_memory_mb": {"gpu0": null, "gpu1": null}
+    },
+    "music": {
+      "name": "comfyui-music", "id": "REPLACE_WITH_FULL_MUSIC_CONTAINER_ID",
+      "identity_mode": "contract",
+      "image": "REPLACE_WITH_IMAGE_ID", "contract_sha256": "REPLACE_WITH_INSPECT_CONTRACT_HASH",
+      "idle_memory_mb": {"gpu0": null, "gpu1": null}
+    },
+    "ollama": {
+      "name": "REPLACE_WITH_OLLAMA_CONTAINER_NAME", "id": "REPLACE_WITH_FULL_OLLAMA_CONTAINER_ID",
+      "identity_mode": "contract",
+      "image": "REPLACE_WITH_IMAGE_ID", "contract_sha256": "REPLACE_WITH_INSPECT_CONTRACT_HASH",
+      "idle_memory_mb": {"gpu0": null, "gpu1": null}
+    }
+  },
+  "idle_memory_mb": {"gpu0": null, "gpu1": null},
+  "max_temperature_c": 85,
+  "idle_utilization_pct": 0,
+  "samples": 3,
+  "observation_timeout": 60,
+  "grace_seconds": 10,
+  "allow_force": false,
+  "max_incidents": 2,
+  "window_seconds": 3600,
+  "exclusive_wallpaper_access": true
+}

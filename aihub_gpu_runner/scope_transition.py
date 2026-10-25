@@ -107,15 +107,103 @@ def _wallpaper_delta(old, new, old_targets, new_targets, rollback):
         raise ValueError('only_wallpaper_template_binding_may_change')
 
 
+CONDITIONING_ATTESTATIONS = (
+    'operator_approved_wallpaper_conditioning_transition', *WALLPAPER_ATTESTATIONS[1:],
+    'both_gpus_quiescent', 'physical_gpu_uuids_verified', 'staged_workflow_bytes_verified',
+)
+
+
+def _wallpaper_conditioning_delta(old, new, old_targets, new_targets, rollback):
+    cpu, dual = (new, old) if rollback else (old, new)
+    cpu_targets, dual_targets = (new_targets, old_targets) if rollback else (old_targets, new_targets)
+    if 'wallpaper' not in cpu_targets or 'wallpaper' not in dual_targets:
+        raise ValueError('wallpaper_comfy_target_required')
+    before, after = cpu_targets['wallpaper'], dual_targets['wallpaper']
+    if (before.kind != 'comfy' or before.resources != ('gpu0',) or
+            after.kind != 'comfy' or after.resources != ('gpu0', 'gpu1') or
+            before.conditioning_idle_memory_mb is not None or after.conditioning_idle_memory_mb is None):
+        raise ValueError('exact_cpu_to_dual_wallpaper_resources_required')
+    uuids = after.conditioning_gpu_uuids()
+    node = before.workflow.get('3', {})
+    inputs = node.get('inputs', {})
+    if (node.get('class_type') != 'CLIPLoader' or
+            set(inputs) != {'clip_name', 'type', 'device'} or
+            inputs.get('clip_name') != 'qwen_2.5_vl_7b_fp8_scaled.safetensors' or
+            inputs.get('type') != 'qwen_image' or inputs.get('device') != 'cpu' or
+            '95' in before.workflow or
+            before.workflow.get('7', {}).get('class_type') != 'QwenImageIntegratedKSampler' or
+            before.workflow['7'].get('inputs', {}).get('clip') != ['3', 0]):
+        raise ValueError('approved_cpu_wallpaper_loader_graph_required')
+    expected_node = dict(node, class_type='AIHubQwenGPU1CLIPLoader', inputs={
+        'clip_name': inputs['clip_name'], 'gpu0_uuid': uuids['gpu0'], 'gpu1_uuid': uuids['gpu1']})
+    if encode(dict(before.workflow, **{'3': expected_node})) != encode(after.workflow):
+        raise ValueError('only_wallpaper_gpu1_loader_change_permitted')
+    cpu_raw, dual_raw = cpu['targets']['wallpaper'], dual['targets']['wallpaper']
+    keys = ('workflow_template', 'workflow_sha256')
+    if (any(not isinstance(w.get(k), str) or not w[k] for w in (cpu_raw, dual_raw) for k in keys) or
+            'conditioning_idle_memory_mb' in cpu_raw):
+        raise ValueError('hash_bound_cpu_and_dual_wallpaper_templates_required')
+    expected = dict(cpu, targets=dict(cpu['targets'], wallpaper=dict(cpu_raw,
+        resources=['gpu0', 'gpu1'], conditioning_idle_memory_mb=after.conditioning_idle_memory_mb,
+        **{k: dual_raw[k] for k in keys})))
+    if encode(expected) != encode(dual):
+        raise ValueError('only_wallpaper_resources_conditioning_calibration_template_may_change')
+
+
+def transition_wallpaper_conditioning(old_config, new_config, evidence, *, rollback=False):
+    """Exact CPU-wallpaper <-> GPU1-conditioning transition; no backend/config actions."""
+    return _transition_wallpaper(old_config, new_config, evidence,
+                                 kind='wallpaper_gpu1_conditioning', rollback=rollback)
+
+
+def _wallpaper_on_demand_delta(old, new, old_targets, new_targets, rollback):
+    # The current checkpoint is CPU/GPU0 -> dual conditioning + on-demand.
+    # Reuse the exact reviewed graph/resource validator; only these three extra
+    # lifecycle fields may accompany that same transition, never model changes.
+    cpu, demand = (new, old) if rollback else (old, new)
+    cpu_targets, demand_targets = (new_targets, old_targets) if rollback else (old_targets, new_targets)
+    if (cpu_targets['wallpaper'].lifecycle != 'always_on' or
+            demand_targets['wallpaper'].lifecycle != 'on_demand'):
+        raise ValueError('exact_cpu_to_dual_on_demand_wallpaper_required')
+    keys = ('lifecycle', 'startup_timeout', 'shutdown_timeout')
+    if any(k in cpu['targets']['wallpaper'] for k in keys) or not all(
+            k in demand['targets']['wallpaper'] for k in keys):
+        raise ValueError('explicit_new_lifecycle_fields_only')
+    stripped = dict(demand, targets=dict(demand['targets'], wallpaper={
+        k: v for k, v in demand['targets']['wallpaper'].items() if k not in keys}))
+    _wallpaper_conditioning_delta(cpu, stripped, cpu_targets, demand_targets, False)
+
+
+def transition_wallpaper_on_demand(old_config, new_config, evidence, *, rollback=False):
+    return _transition_wallpaper(old_config, new_config, evidence,
+                                 kind='wallpaper_gpu1_on_demand', rollback=rollback)
+
+
 def transition_wallpaper_workflow(old_config, new_config, evidence, *, rollback=False):
     """Idle-only removal of node 95; commit journal, never activate config or call a backend."""
+    return _transition_wallpaper(old_config, new_config, evidence,
+                                 kind='wallpaper_remove_purge95', rollback=rollback)
+
+
+def _transition_wallpaper(old_config, new_config, evidence, *, kind, rollback):
+    # Two fixed validators share the existing transaction; no arbitrary-scope interface.
+    if kind == 'wallpaper_remove_purge95':
+        validate_delta, attestations = _wallpaper_delta, WALLPAPER_ATTESTATIONS
+    elif kind == 'wallpaper_gpu1_conditioning':
+        validate_delta, attestations = _wallpaper_conditioning_delta, CONDITIONING_ATTESTATIONS
+    elif kind == 'wallpaper_gpu1_on_demand':
+        validate_delta = _wallpaper_on_demand_delta
+        attestations = ('operator_approved_wallpaper_on_demand_transition',
+                        *CONDITIONING_ATTESTATIONS[1:], 'wallpaper_stopped')
+    else:
+        raise ValueError('unsupported_wallpaper_transition')
     if not sys.platform.startswith('linux'):
         raise RecoveryRequired('wallpaper_transition_requires_linux')
     configs = tuple(Path(p) for p in (old_config, new_config))
     frozen = tuple(p.read_bytes() for p in configs)
     old, old_targets, state_dir, locks, old_scope = load_config(old_config)
     new, new_targets, new_state, new_locks, new_scope = load_config(new_config)
-    _wallpaper_delta(old, new, old_targets, new_targets, rollback)
+    validate_delta(old, new, old_targets, new_targets, rollback)
     if (state_dir != new_state or
             {r: p.resolve() for r, p in locks.items()} != {r: p.resolve() for r, p in new_locks.items()} or
             old_scope == new_scope):
@@ -125,11 +213,17 @@ def transition_wallpaper_workflow(old_config, new_config, evidence, *, rollback=
                     old_config_sha256=digest(frozen[0]), new_config_sha256=digest(frozen[1]),
                     old_workflow_sha256=old['targets']['wallpaper']['workflow_sha256'],
                     new_workflow_sha256=new['targets']['wallpaper']['workflow_sha256'])
+    references = ('approval_ref', 'exclusion_evidence_ref', 'backend_evidence_ref', 'ownership_sha256')
+    if kind in ('wallpaper_gpu1_conditioning', 'wallpaper_gpu1_on_demand'):
+        dual = (old_targets if rollback else new_targets)['wallpaper']
+        bindings.update(physical_gpu_uuids=dual.conditioning_gpu_uuids(),
+            calibrated_memory_mb={'gpu0': dual.idle_memory_mb, 'gpu1': dual.conditioning_idle_memory_mb},
+            media_workflow_sha256=bindings['new_workflow_sha256'])
+        references += ('workflow_staging_evidence_ref', 'calibration_evidence_ref')
     if (not isinstance(evidence, dict) or
-            any(not isinstance(evidence.get(k), str) or not evidence[k].strip() for k in
-                ('approval_ref', 'exclusion_evidence_ref', 'backend_evidence_ref', 'ownership_sha256')) or
-            any(evidence.get(k) is not True for k in WALLPAPER_ATTESTATIONS) or
-            any(evidence.get(k) != v for k, v in bindings.items()) or
+            any(not isinstance(evidence.get(k), str) or not evidence[k].strip() for k in references) or
+            any(evidence.get(k) is not True for k in attestations) or
+            any(encode(evidence.get(k)) != encode(v) for k, v in bindings.items()) or
             (not rollback and 'rollback_of' in evidence)):
         raise ValueError('wallpaper_transition_exact_operator_evidence_required')
     if not (state_dir / 'ownership.json').is_file():
@@ -146,6 +240,8 @@ def transition_wallpaper_workflow(old_config, new_config, evidence, *, rollback=
         gate = Admission.__new__(Admission)
         gate.store, gate.scope, gate.lock_paths = store, state.get('scope') if isinstance(state, dict) else None, locks
         gate._validate(state)
+        if kind == 'wallpaper_gpu1_on_demand' and state.get('recovery_policy'):
+            raise RecoveryRequired('lifecycle_scope_change_requires_separate_recovery_policy_migration')
         if gate.scope not in (old_scope, new_scope):
             raise RecoveryRequired('wallpaper_transition_baseline_changed')
         if not state['ready'] or state['owners'] or any(j.get('state') not in FINAL for j in store.jobs()):
@@ -167,7 +263,6 @@ def transition_wallpaper_workflow(old_config, new_config, evidence, *, rollback=
         if not isinstance(history, list):
             raise RecoveryRequired('wallpaper_transition_history_invalid')
         evidence_hash = digest(encode(evidence))
-        kind = 'wallpaper_remove_purge95'
         if gate.scope == new_scope:
             if (not history or history[-1].get('kind') != kind or
                     history[-1].get('rollback') is not rollback or

@@ -11,11 +11,15 @@ def main():
     parser.add_argument("--config", required=True)
     parser.add_argument("action", choices=("inspect", "bootstrap", "recover", "serve",
                         "transition-scope", "dual-restore", "migrate-physical-locks",
-                        "transition-wallpaper-workflow"))
+                        "transition-wallpaper-workflow", "transition-wallpaper-conditioning",
+                        "transition-wallpaper-on-demand",
+                        "authorize-recovery"))
     parser.add_argument("--evidence-file")
     parser.add_argument("--job-id")
     parser.add_argument("--new-config")
     parser.add_argument("--rollback", action='store_true')
+    parser.add_argument('--policy-file')
+    parser.add_argument('--approval-ref')
     args = parser.parse_args()
     if args.action == 'migrate-physical-locks':
         if not args.new_config or not args.evidence_file or not args.job_id or args.rollback:
@@ -25,13 +29,18 @@ def main():
             evidence = strict_json(stream.read())
         print(json.dumps(migrate_physical_locks(args.config, args.new_config, args.job_id, evidence)))
         return
-    if args.action in ('transition-scope', 'transition-wallpaper-workflow'):
+    if args.action in ('transition-scope', 'transition-wallpaper-workflow', 'transition-wallpaper-conditioning',
+                       'transition-wallpaper-on-demand'):
         if not args.new_config or not args.evidence_file:
             parser.error('new config and local operator evidence required')
-        from .scope_transition import transition_scope, transition_wallpaper_workflow
+        from .scope_transition import (transition_scope, transition_wallpaper_workflow,
+                                       transition_wallpaper_conditioning, transition_wallpaper_on_demand)
         with open(args.evidence_file, 'rb') as stream:
             evidence = strict_json(stream.read())
-        transition = transition_wallpaper_workflow if args.action == 'transition-wallpaper-workflow' else transition_scope
+        transition = {'transition-scope': transition_scope,
+                      'transition-wallpaper-workflow': transition_wallpaper_workflow,
+                      'transition-wallpaper-conditioning': transition_wallpaper_conditioning,
+                      'transition-wallpaper-on-demand': transition_wallpaper_on_demand}[args.action]
         print(json.dumps(transition(args.config, args.new_config, evidence, rollback=args.rollback)))
         return
     if args.action == "serve":
@@ -47,6 +56,16 @@ def main():
             runner.close()
         return
     _, targets, admission = admission_from_config(args.config)
+    if args.action == 'authorize-recovery':
+        if not args.policy_file or not args.approval_ref:
+            parser.error('reviewed recovery policy file and deployment approval reference required')
+        from .config import configured_backends
+        from .recovery import authorize_policy
+        with open(args.policy_file, 'rb') as stream:
+            policy = strict_json(stream.read())
+        result = authorize_policy(admission, targets, configured_backends(targets), policy, args.approval_ref)
+        print(json.dumps({'recorded': args.action, 'policy_id': result['policy_id']}))
+        return
     if args.action == "inspect":
         print(json.dumps(admission.snapshot(), indent=2))
         return

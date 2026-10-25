@@ -29,6 +29,9 @@ class Application:
                 return 200, "application/json", encode({"ready": state["ready"],
                     "owners": {r: {"job_id": o["job_id"], "phase": o["phase"]}
                                for r, o in state["owners"].items()}})
+            if method == 'GET' and path == '/recovery-summary':
+                from .recovery_summary import read_recovery_summary
+                return 200, 'application/json', encode(read_recovery_summary(self.runner.store))
             parts = path.split("/")
             if len(parts) in (3, 4) and parts[:2] == ["", "jobs"]:
                 job_id = parts[2]
@@ -60,6 +63,8 @@ class Application:
         result = {key: job[key] for key in ("request_id", "request_hash", "target", "state",
                 "created_at", "updated_at", "error_code", "phase", "backend_detail",
                 "completion_verified", "cleanup_verified", "publication_warning") if key in job}
+        if job.get('wallpaper_lifecycle') and result.get('state') == 'success' and not released:
+            result['state'] = 'cleanup_pending'
         return dict(result, resources_released=released, supervision_active=active)
 
 def serve(application, host="127.0.0.1", port=8790):

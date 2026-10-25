@@ -7,6 +7,7 @@ import subprocess
 import time
 from urllib.parse import urlencode, urlsplit
 import urllib.request
+from uuid import UUID
 from .core import encode, strict_json
 
 class Uncertain(Exception):
@@ -31,6 +32,13 @@ PATH_INPUTS = {"image", "filename", "filename_prefix", "output_filename_prefix",
                "ckpt_name", "unet_name", "vae_name", "clip_name", "lora_name"}
 COMMAND_INPUTS = {"command", "shell", "script", "executable", "arguments"}
 
+def physical_gpu_uuid(value):
+    if (not isinstance(value, str) or not re.fullmatch(
+            r"GPU-[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", value)):
+        raise ValueError("full_physical_gpu_uuid_required")
+    return "GPU-" + str(UUID(value[4:]))
+
+
 @dataclass
 class Target:
     name: str
@@ -50,6 +58,10 @@ class Target:
     execution_timeout: float = 1800
     cleanup_timeout: float = 60
     mode_switch: dict | None = None
+    conditioning_idle_memory_mb: float | None = None
+    lifecycle: str = 'always_on'
+    startup_timeout: float = 60
+    shutdown_timeout: float = 60
     def __post_init__(self):
         if (not isinstance(self.name, str) or not self.name or
                 self.kind not in ("ollama", "comfy") or
@@ -67,12 +79,23 @@ class Target:
             raise ValueError("invalid_backend_base")
         if not self.resources or set(self.resources) - {"gpu0", "gpu1"}:
             raise ValueError("invalid_target_resources")
+        if (self.lifecycle not in ('always_on', 'on_demand') or
+                self.lifecycle == 'on_demand' and (self.name != 'wallpaper' or self.kind != 'comfy')):
+            raise ValueError('only_wallpaper_on_demand_lifecycle_permitted')
+        dual_comfy = self.kind == "comfy" and self.resources == ("gpu0", "gpu1")
+        if dual_comfy or self.conditioning_idle_memory_mb is not None:
+            ceiling = self.conditioning_idle_memory_mb
+            if (not dual_comfy or self.name != "wallpaper" or self.media_type != "image/png" or
+                    self.idle_memory_mb is None or type(ceiling) not in (int, float) or not math.isfinite(ceiling) or ceiling < 0):
+                raise ValueError("wallpaper_conditioning_resource_policy_required")
+            self.conditioning_gpu_uuids()
         if self.mode_switch is not None:
             from .dual_gpu import validate_policy
             if self.kind != 'ollama' or self.resources != ('gpu0', 'gpu1'):
                 raise ValueError('dual_session_resource_policy_required')
             validate_policy(self.mode_switch)
-        for value in (self.acquisition_timeout, self.execution_timeout, self.cleanup_timeout):
+        for value in (self.acquisition_timeout, self.execution_timeout, self.cleanup_timeout,
+                      self.startup_timeout, self.shutdown_timeout):
             if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
                 raise ValueError("invalid_deadline")
         if self.idle_memory_mb is not None and (type(self.idle_memory_mb) not in (int, float)
@@ -88,6 +111,20 @@ class Target:
                 raise ValueError("mutation_not_in_template")
             if input_key in PATH_INPUTS and spec.get("type") != "enum":
                 raise ValueError("mutable_paths_require_exact_allowlist")
+
+    def conditioning_gpu_uuids(self):
+        node = self.workflow.get("3", {})
+        inputs = node.get("inputs", {})
+        if (node.get("class_type") != "AIHubQwenGPU1CLIPLoader" or
+                set(inputs) != {"clip_name", "gpu0_uuid", "gpu1_uuid"} or
+                inputs.get("clip_name") != "qwen_2.5_vl_7b_fp8_scaled.safetensors" or
+                {"3.gpu0_uuid", "3.gpu1_uuid"}.intersection(self.mutations)):
+            raise ValueError("fixed_wallpaper_conditioning_gpu_identity_required")
+        result = {r: physical_gpu_uuid(inputs[r + "_uuid"]) for r in ("gpu0", "gpu1")}
+        if result["gpu0"] == result["gpu1"]:
+            raise ValueError("distinct_wallpaper_physical_gpus_required")
+        return result
+
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
@@ -105,8 +142,18 @@ class HTTPTransport:
         request = urllib.request.Request(url, data=encode(payload) if payload is not None else None,
                                          method=method, headers={"Content-Type": "application/json"})
         try:
-            with self.opener.open(request, timeout=timeout) as response:
+            opener = self.opener
+            deadline = None
+            if method == 'GET':
+                from .http_deadline import read_opener
+                if type(timeout) not in (int, float) or not math.isfinite(timeout) or timeout <= 0:
+                    raise Uncertain('backend_deadline')
+                deadline = time.monotonic() + timeout
+                opener = read_opener(deadline, NoRedirect())
+            with opener.open(request, timeout=remaining(deadline) if deadline else timeout) as response:
                 data = response.read(self.max_bytes + 1)
+                if deadline is not None:
+                    remaining(deadline)
                 if len(data) > self.max_bytes:
                     raise Uncertain("backend_response_too_large")
                 return data, response.headers.get_content_type()
@@ -229,13 +276,22 @@ def validate_mutation(value, spec):
         raise ValueError("unsupported_mutation_contract")
 
 class ComfyBackend:
-    def __init__(self, target, transport, probe=None, poll_interval=.1):
+    def __init__(self, target, transport, probe=None, poll_interval=.1, conditioning_probe=None):
         self.target, self.transport, self.probe = target, transport, probe
-        self.poll_interval = poll_interval
+        self.poll_interval, self.conditioning_probe = poll_interval, conditioning_probe
+    def _calibrated(self):
+        return (self.target.idle_memory_mb is not None and self.probe is not None and
+                (self.target.conditioning_idle_memory_mb is None or self.conditioning_probe is not None))
+    def _memory_sample(self):
+        used, ceilings = {"gpu0": self.probe()}, {"gpu0": self.target.idle_memory_mb}
+        if self.target.conditioning_idle_memory_mb is not None:
+            used["gpu1"] = self.conditioning_probe()
+            ceilings["gpu1"] = self.target.conditioning_idle_memory_mb
+        return used, ceilings
     def validate(self, operation, payload):
         if (operation != "workflow" or not isinstance(payload, dict) or
                 set(payload) != set(self.target.workflow) or
-                self.target.idle_memory_mb is None or self.probe is None):
+                not self._calibrated()):
             raise ValueError("workflow_contract_or_cleanup_calibration_required")
         for node_id, expected in self.target.workflow.items():
             node = payload[node_id]
@@ -262,11 +318,11 @@ class ComfyBackend:
     def execute(self, operation, payload, deadline, progress):
         if not self._queue_empty(deadline):
             raise Uncertain("unexpected_existing_comfy_work")
-        if self.probe is None or self.target.idle_memory_mb is None:
+        if not self._calibrated():
             raise Uncertain("cleanup_calibration_missing_before_submission")
-        observed = self.probe()
-        if (type(observed) not in (int, float) or not math.isfinite(observed) or observed < 0
-                or observed > self.target.idle_memory_mb):
+        observed, ceilings = self._memory_sample()
+        if any(type(value) not in (int, float) or not math.isfinite(value) or value < 0
+               or value > ceilings[resource] for resource, value in observed.items()):
             raise Uncertain("unexpected_gpu_residency_before_comfy_submission")
         try:
             response = self.transport.json("POST", "/prompt",
@@ -278,22 +334,24 @@ class ComfyBackend:
             raise Uncertain("comfy_prompt_id_missing_or_invalid")
         progress("running", {"prompt_id": prompt_id, "target": self.target.name})
         while True:
-            try:
-                history = self.transport.json("GET", "/history/" + prompt_id,
-                                                timeout=remaining(deadline))
-            except Exception:
-                raise Uncertain("comfy_history_uncertain") from None
-            item = history.get(prompt_id, {})
-            status = item.get("status", {})
-            # Terminal history errors can have completed=False (success flag).
-            # Queue/memory cleanup still gates release; outputs alone never do.
-            if status.get("status_str") == "error" and type(status.get("completed")) is bool:
-                return Execution({}, {"prompt_id": prompt_id}, error_code="comfy_execution_failed")
-            if status.get("completed") is True:
-                if status.get("status_str") != "success":
-                    raise Uncertain("comfy_terminal_status_unknown")
-                break
+            execution = self.reconcile(prompt_id, deadline)
+            if execution is not None:
+                return execution
             time.sleep(min(self.poll_interval, remaining(deadline)))
+
+    def reconcile(self, prompt_id, deadline):
+        """Read terminal history/output for an existing prompt; never submit inference."""
+        if not isinstance(prompt_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", prompt_id):
+            raise Uncertain("comfy_prompt_id_missing_or_invalid")
+        history = self.transport.json("GET", "/history/" + prompt_id, timeout=remaining(deadline))
+        item = history.get(prompt_id, {})
+        status = item.get("status", {})
+        if status.get("status_str") == "error" and type(status.get("completed")) is bool:
+            return Execution({}, {"prompt_id": prompt_id}, error_code="comfy_execution_failed")
+        if status.get("completed") is not True:
+            return None
+        if status.get("status_str") != "success":
+            raise Uncertain("comfy_terminal_status_unknown")
         try:
             outputs = item.get("outputs", {}).get(self.target.output_node, {}).get(self.target.output_key)
             if not isinstance(outputs, list) or not outputs:
@@ -320,7 +378,7 @@ class ComfyBackend:
         except Exception:
             return Execution({}, {"prompt_id": prompt_id}, error_code="artifact_retrieval_or_validation_failed")
     def cleanup(self, execution, deadline):
-        if self.target.idle_memory_mb is None or self.probe is None:
+        if not self._calibrated():
             raise CleanupPending("cleanup_observer_not_calibrated")
         try:
             if not self._queue_empty(deadline):
@@ -332,15 +390,23 @@ class ComfyBackend:
             stable = 0
             while True:
                 remaining(deadline, CleanupPending)
-                idle, used = self._queue_empty(deadline), self.probe()
-                if type(used) not in (int, float) or not math.isfinite(used) or used < 0:
+                idle = self._queue_empty(deadline)
+                used, ceilings = self._memory_sample()
+                if self.target.conditioning_idle_memory_mb is not None:
+                    remaining(deadline, CleanupPending)  # Never release on a late dual-GPU observation.
+                if any(type(value) not in (int, float) or not math.isfinite(value) or value < 0
+                       for value in used.values()):
                     raise CleanupPending("invalid_gpu_cleanup_observation")
-                stable = stable + 1 if idle and used <= self.target.idle_memory_mb else 0
+                stable = stable + 1 if idle and all(used[r] <= ceilings[r] for r in used) else 0
                 if stable >= self.target.cleanup_samples:
-                    return {"completion_verified": True, "cleanup_verified": True,
-                            "policy": "terminal_prompt_owned_free_empty_queue_calibrated_gpu_memory",
-                            "prompt_id": execution.handle["prompt_id"], "stable_samples": stable,
-                            "memory_mb": used, "idle_ceiling_mb": self.target.idle_memory_mb}
+                    proof = {"completion_verified": True, "cleanup_verified": True,
+                             "policy": "terminal_prompt_owned_free_empty_queue_calibrated_gpu_memory",
+                             "prompt_id": execution.handle["prompt_id"], "stable_samples": stable,
+                             "memory_mb": used["gpu0"], "idle_ceiling_mb": self.target.idle_memory_mb}
+                    if self.target.conditioning_idle_memory_mb is not None:
+                        proof.update(memory_mb_by_resource=used, idle_ceiling_mb_by_resource=ceilings,
+                                     physical_gpu_uuids=self.target.conditioning_gpu_uuids())
+                    return proof
                 time.sleep(min(self.poll_interval, remaining(deadline, CleanupPending)))
         except CleanupPending:
             raise
@@ -357,3 +423,28 @@ class NvidiaMemoryProbe:
             ["nvidia-smi", "--id=" + str(self.gpu_index), "--query-gpu=memory.used",
              "--format=csv,noheader,nounits"], text=True, timeout=5)
         return float(output.strip())
+
+
+class NvidiaUUIDMemoryProbe:
+    """Dual wallpaper only: select by full UUID and verify identity on EVERY sample."""
+    def __init__(self, gpu_uuid):
+        self.gpu_uuid = physical_gpu_uuid(gpu_uuid)
+    def __call__(self):
+        try:
+            output = subprocess.check_output(
+                ["nvidia-smi", "--id=" + self.gpu_uuid, "--query-gpu=uuid,memory.used",
+                 "--format=csv,noheader,nounits"], text=True, timeout=5)
+            rows = output.strip().splitlines()
+            if len(rows) != 1:
+                raise ValueError("one_physical_device_required")
+            identity, memory = rows[0].split(",")
+            if physical_gpu_uuid(identity.strip()) != self.gpu_uuid:
+                raise Uncertain("physical_gpu_uuid_mismatch")
+            used = float(memory.strip())
+            if not math.isfinite(used) or used < 0:
+                raise ValueError("invalid_memory")
+            return used
+        except Uncertain:
+            raise
+        except Exception:
+            raise Uncertain("physical_gpu_uuid_observation_failed") from None

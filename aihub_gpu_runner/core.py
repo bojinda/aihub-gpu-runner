@@ -56,6 +56,15 @@ def timestamp():
     return datetime.now(timezone.utc).isoformat()
 
 
+def guest_boot_id():
+    """Only the kernel's boot UUID is reboot evidence; never synthesize a fallback."""
+    try:
+        value = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+        return str(uuid.UUID(value)) if str(uuid.UUID(value)) == value else None
+    except (OSError, ValueError):
+        return None
+
+
 class NativeLock:
     """Persistent file identity; Linux flock, Windows byte lock for offline tests."""
     def __init__(self, path, *, create=True):
@@ -228,8 +237,10 @@ def lock_identity(stat_value):
 
 class Admission:
     """Every participating launcher must use this gate, never the OS lock alone."""
-    def __init__(self, store, lock_paths, scope, require_existing_locks=False):
+    def __init__(self, store, lock_paths, scope, require_existing_locks=False,
+                 boot_reader=guest_boot_id):
         self.store = store
+        self.boot_reader = boot_reader
         if not lock_paths or set(lock_paths) - {"gpu0", "gpu1"}:
             raise ValueError("invalid_resources")
         self.lock_paths = {key: Path(value).resolve() for key, value in lock_paths.items()}
@@ -309,6 +320,9 @@ class Admission:
         locks = []
         with self.mutex.held():
             state = self.snapshot()
+            if state.get('recovery_policy') and (
+                    not self.boot_reader() or state.get('verified_boot') != self.boot_reader()):
+                return None
             if not state["ready"] or any(r in state["owners"] for r in resources):
                 return None
             try:
@@ -328,6 +342,7 @@ class Admission:
                 owner = {"job_id": job_id, "request_hash": request_hash,
                          "lease_id": uuid.uuid4().hex, "target": target, "phase": "claimed",
                          "claimed_at": timestamp()}
+                owner['boot_id'] = self.boot_reader()
                 for resource in resources:
                     state["owners"][resource] = dict(owner)
                 # Durable ownership precedes submission, even when the response is lost.
@@ -420,7 +435,7 @@ class Lease:
 
 class Runner:
     def __init__(self, admission, targets, backends, workers=4, poll_interval=.05,
-                 max_pending=64):
+                 max_pending=64, recovery=None):
         self.admission, self.store = admission, admission.store
         self.targets, self.backends = targets, backends
         if set(targets) != set(backends):
@@ -432,7 +447,16 @@ class Runner:
             raise Conflict("supervisor_already_running")
         self.closed, self.futures, self.pending = False, {}, {}
         self.wake = threading.Event()
+        self.recovery = recovery
         try:
+            if self.recovery is None and admission.snapshot().get('recovery_policy'):
+                from .recovery import RecoveryManager
+                self.recovery = RecoveryManager(admission, targets, backends)
+            if any(getattr(t, 'lifecycle', 'always_on') == 'on_demand' for t in targets.values()) and (
+                    self.recovery is None or self.recovery.lifecycle is None):
+                raise RecoveryRequired('on_demand_requires_authorized_scope_bound_policy')
+            if self.recovery:
+                self.recovery.startup()
             with self.job_mutex.held():
                 owners = self.admission.snapshot()["owners"]
                 owner_ids = {o["job_id"] for o in owners.values()}
@@ -450,8 +474,12 @@ class Runner:
             self.pool = concurrent.futures.ThreadPoolExecutor(max_workers=workers,
                                                               thread_name_prefix="gpu-runner")
             self.scheduler = threading.Thread(target=self._schedule, name="gpu-admission", daemon=True)
+            if self.recovery:
+                self.recovery.start()
             self.scheduler.start()
         except BaseException:
+            if self.recovery:
+                self.recovery.close()
             self.service_lock.close()
             raise
     def _update(self, job_id, **fields):
@@ -482,6 +510,7 @@ class Runner:
                    "operation": operation, "payload": json.loads(encode(payload)), "state": "waiting",
                    "created_at": timestamp(), "updated_at": timestamp(), "error_code": None,
                    "resources": list(self.targets[target].resources)}
+            job['boot_id'] = self.admission.boot_reader()
             self.store.put_job(job)
             self.futures[request_id] = concurrent.futures.Future()
             self.pending[request_id] = time.monotonic() + self.targets[target].acquisition_timeout
@@ -563,6 +592,8 @@ class Runner:
                                "policy": "never_submitted"})
                 return
             self._work(job_id, lease)
+            if self.recovery:
+                self.recovery.notify()
         except BaseException as exc:
             future.set_exception(exc)
         else:
@@ -582,12 +613,19 @@ class Runner:
                     return
                 current.update(state="running", lease_id=lease.owner["lease_id"], updated_at=timestamp())
                 self.store.put_job(current)
+            if getattr(target, 'lifecycle', 'always_on') == 'on_demand':
+                self.recovery.lifecycle.run(self, job, lease)
+                return
             lease.mark("submit_intent")
+            if self.recovery:
+                self.recovery.prepare(job_id, lease)
             def progress(phase, detail=None):
                 lease.mark(phase, detail)
                 self._update(job_id, backend_detail=detail or {}, phase=phase)
             execution = backend.execute(job["operation"], job["payload"],
                                         time.monotonic() + target.execution_timeout, progress)
+            if self.recovery and execution.error_code:
+                self._update(job_id, owned_execution_failed=True)
             lease.mark("cleanup_pending", execution.handle)
             self._update(job_id, state="cleanup_pending", backend_detail=execution.handle,
                          completion_verified=True)
@@ -606,12 +644,14 @@ class Runner:
         except CleanupPending as exc:
             if lease:
                 lease.mark("cleanup_pending")
-            self._update(job_id, state="cleanup_pending", error_code=exc.code)
+            self._update(job_id, state="cleanup_pending", error_code=exc.code,
+                         **({'lifecycle_failure': exc.code} if self.store.job(job_id).get('wallpaper_lifecycle') else {}))
         except Uncertain as exc:
             if lease:
                 lease.mark("reconciling")
-            self._update(job_id, state="reconciling", error_code=exc.code)
-        except Exception:
+            self._update(job_id, state="reconciling", error_code=exc.code,
+                         **({'lifecycle_failure': exc.code} if self.store.job(job_id).get('wallpaper_lifecycle') else {}))
+        except Exception as exc:
             # Completed output must remain retrievable when only the ownership
             # clearing write reports failure after effect. If the old owner
             # remains, retain cleanup_pending instead of pretending handoff.
@@ -631,12 +671,19 @@ class Runner:
                     lease.mark("reconciling")
                 except Exception:
                     pass
-            self._update(job_id, state="reconciling", error_code="supervision_or_storage_failure")
+            self._update(job_id, state="reconciling", error_code="supervision_or_storage_failure",
+                         **({'lifecycle_operator_error': str(exc)} if isinstance(exc, RecoveryRequired) and
+                            self.store.job(job_id).get('wallpaper_lifecycle') else {}))
         finally:
             if lease:
                 lease.close()
     def result(self, job_id):
         job = self.status(job_id)
+        if job.get('wallpaper_lifecycle'):
+            future = self.futures.get(job_id)
+            if ((future is not None and not future.done()) or any(o['job_id'] == job_id for o in
+                                                        self.admission.snapshot()['owners'].values())):
+                raise Conflict('wallpaper_result_ownership_not_released')
         if job["state"] not in FINAL:
             raise Conflict("result_not_terminal")
         value = self.store.read("results/" + check_id(job_id) + ".json", {"value": None})
@@ -654,4 +701,6 @@ class Runner:
         self.wake.set()
         self.scheduler.join()
         self.pool.shutdown(wait=True, cancel_futures=False)
+        if self.recovery:
+            self.recovery.close()
         self.service_lock.close()

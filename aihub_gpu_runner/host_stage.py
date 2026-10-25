@@ -226,6 +226,7 @@ class HostStage:
                     'dual_gpu_session': self.dual,
                     'switch_binding': switch_binding(self.target.mode_switch) if self.dual else None,
                     'host_requests': [], 'state': 'waiting', 'error_code': None,
+                    'boot_id': self.admission.boot_reader(),
                     'created_at': timestamp(), 'updated_at': timestamp()})
             deadline = time.monotonic() + timeout
             waited = False

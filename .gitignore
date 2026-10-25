@@ -6,3 +6,7 @@ __pycache__/
 /private/
 /test-results/
 /config.local.json
+/build/
+/release-candidates/
+/review/
+/recovery-delta/

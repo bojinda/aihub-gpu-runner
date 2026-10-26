@@ -57,7 +57,18 @@ _PHASES = {'factory', 'capture', 'binding', 'container_identity', 'service_proce
            'process_birth_recheck', 'observation_persistence', 'limits', 'deadline'}
 
 
-def cleanup_failure(exc, phase, *, service=None, pid=None):
+def _identity_number(value, maximum):
+    # Kernel identities only: bounded ASCII decimal, never arbitrary observation
+    # text (or str() on an object supplied by a failed observer).
+    if type(value) is int:
+        return str(value) if 0 <= value <= maximum else None
+    if (type(value) is str and 0 < len(value) <= 20 and value.isascii() and
+            value.isdecimal() and int(value) <= maximum):
+        return value
+    return None
+
+
+def cleanup_failure(exc, phase, *, service=None, pid=None, process_identity=None):
     """Small sanitized diagnostic, suitable for the caller's durable job update."""
     phase = phase if phase in _PHASES else 'factory'
     reason = str(exc) if isinstance(exc, (RecoveryRequired, CleanupPending, Uncertain)) else None
@@ -78,15 +89,29 @@ def cleanup_failure(exc, phase, *, service=None, pid=None):
             reason = 'ollama_cleanup_observation_error'
     number = getattr(exc, 'errno', None)
     pid = getattr(exc, 'pid', pid)
-    return {'schema': 1, 'reason': reason, 'phase': phase,
+    pid = _identity_number(pid, 2**31 - 1)
+    detail = {'schema': 1, 'reason': reason, 'phase': phase,
             'exception_type': type(exc).__name__ if type(exc).__name__ in {
                 'ProcessDisappeared', 'RecoveryRequired', 'CleanupPending', 'Uncertain',
                 'FileNotFoundError', 'ProcessLookupError', 'PermissionError', 'OSError',
                 'ValueError', 'IndexError', 'KeyError', 'UnicodeDecodeError', 'TypeError'} else 'Exception',
             'errno': number if type(number) is int and 0 < number < 4096 else None,
             'service': service if service in ('ollama', 'music', 'wallpaper') else None,
-            'pid': str(pid) if str(pid).isdecimal() and 0 < int(pid) < 2**31 else None,
+            'pid': pid if pid is not None and int(pid) > 0 else None,
             'observed_at': timestamp()}
+    if type(process_identity) is dict:
+        comparison = process_identity.get('comparison')
+        basis = process_identity.get('basis')
+        if (type(comparison) is str and type(basis) is str and
+                comparison in {'new_pid', 'birth_changed', 'duplicate_pid',
+                           'uncaptured_pid_disappeared', 'still_present', 'unknown_compute_pid'} and
+                basis in {'captured_ollama', 'service_snapshot', 'compute_snapshot'}):
+            detail['process_identity'] = {
+                'comparison': comparison, 'basis': basis,
+                'expected_birth': _identity_number(process_identity.get('expected_birth'), 2**64 - 1),
+                'observed_birth': _identity_number(process_identity.get('observed_birth'), 2**64 - 1),
+            }
+    return detail
 
 
 def _report_errors(method):
@@ -132,12 +157,22 @@ class OllamaCleanupGuard:
         self.exited = {}
         self.sample_exits = set()
         self.phase, self.service, self.pid = 'factory', None, None
+        self.process_identity = None
 
     def mark_phase(self, phase, service=None, pid=None):
         self.phase, self.service, self.pid = phase, service, pid
+        self.process_identity = None
+
+    def note_process(self, pid, comparison, expected=None, observed=None, *, basis='captured_ollama'):
+        # Diagnostic only. Same-container membership, ancestry, eventual exit,
+        # and idle telemetry do not bind a new child to this lease's request.
+        self.pid = pid
+        self.process_identity = dict(comparison=comparison, basis=basis,
+                                     expected_birth=expected, observed_birth=observed)
 
     def failure(self, exc):
-        return cleanup_failure(exc, self.phase, service=self.service, pid=self.pid)
+        return cleanup_failure(exc, self.phase, service=self.service, pid=self.pid,
+                               process_identity=self.process_identity)
 
     def report_failure(self, exc):
         detail = self.failure(exc)
@@ -223,11 +258,16 @@ class OllamaCleanupGuard:
                 raise RecoveryRequired('ollama_cleanup_unverified_process_disappearance') from None
             return
         if birth != self.context['ollama_processes'][pid]:
+            self.note_process(pid, 'birth_changed', self.context['ollama_processes'][pid], birth)
             raise RecoveryRequired('ollama_cleanup_process_birth_changed')
+        self.note_process(pid, 'still_present', self.context['ollama_processes'][pid], birth)
         raise RecoveryRequired('ollama_cleanup_unverified_process_disappearance')
 
     def expected_exit(self, pid):
+        self.pid = pid
         ident = self.context['identities']['ollama']
+        if pid not in self.context['ollama_processes']:
+            self.note_process(pid, 'uncaptured_pid_disappeared')
         if (not self.context['owned_work_completed'] or pid == str(ident['pid']) or
                 pid not in self.context['ollama_processes']):
             raise RecoveryRequired('ollama_cleanup_unverified_process_disappearance')
@@ -262,9 +302,14 @@ class OllamaCleanupGuard:
             processes = (self.observer.processes(ident, deadline, on_missing=self.expected_exit)
                          if service == 'ollama' else self.observer.processes(ident, deadline))
             for pid, birth in processes.items():
+                self.mark_phase('service_processes', service, pid)
                 if pid in known:
+                    self.note_process(pid, 'duplicate_pid', known[pid][1], birth, basis='service_snapshot')
                     raise RecoveryRequired('ollama_cleanup_ambiguous_process')
                 if service == 'ollama' and self.context['ollama_processes'].get(pid) != birth:
+                    captured = self.context['ollama_processes']
+                    self.note_process(pid, 'birth_changed' if pid in captured else 'new_pid',
+                                      captured.get(pid), birth)
                     raise RecoveryRequired('ollama_cleanup_new_or_reused_process')
                 known[pid] = (service, birth)
         uuid_resources = {self.p['gpu_uuids'][r]: r for r in self.resources}
@@ -288,6 +333,7 @@ class OllamaCleanupGuard:
                     raise RecoveryRequired('ollama_cleanup_unleased_gpu_activity')
                 continue
             if (uuid, pid) in seen:
+                self.note_process(pid, 'duplicate_pid', basis='compute_snapshot')
                 raise RecoveryRequired('ollama_cleanup_unknown_or_duplicate_gpu_process')
             seen.add((uuid, pid))
             memory = self.number(row[2])
@@ -296,10 +342,15 @@ class OllamaCleanupGuard:
                     self.mark_phase('process_birth_recheck', 'ollama', pid)
                     self.expected_exit(pid)
                     continue  # Stale compute row: discard, never count this sample.
+                self.note_process(pid, 'unknown_compute_pid', basis='service_snapshot')
                 raise RecoveryRequired('ollama_cleanup_unknown_or_duplicate_gpu_process')
             service, birth = known[pid]
             foreign_compute |= service != 'ollama'
             if service == 'ollama' and self.context['ollama_processes'].get(pid) != birth:
+                self.service = service
+                captured = self.context['ollama_processes']
+                self.note_process(pid, 'birth_changed' if pid in captured else 'new_pid',
+                                  captured.get(pid), birth)
                 raise RecoveryRequired('ollama_cleanup_new_or_reused_process')
             observed_processes[pid] = birth
             usage[service][resource] += memory
@@ -329,6 +380,7 @@ class OllamaCleanupGuard:
                 self.expected_exit(pid)
                 continue
             if current != birth:
+                self.note_process(pid, 'birth_changed', birth, current, basis='service_snapshot')
                 raise RecoveryRequired('ollama_cleanup_process_birth_changed')
         for pid in self.exited:
             self.mark_phase('process_birth_recheck', 'ollama', pid)

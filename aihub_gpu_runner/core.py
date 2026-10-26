@@ -602,6 +602,13 @@ class Runner:
             lease.close()
     def _work(self, job_id, lease):
         from .backends import CleanupPending, Uncertain
+        guard, cleanup_stage = None, None
+        def cleanup_details(exc):
+            if cleanup_stage is None:
+                return {}
+            from .ollama_cleanup import cleanup_failure
+            detail = guard.failure(exc) if guard else cleanup_failure(exc, cleanup_stage)
+            return {'ollama_cleanup_failure': detail}
         try:
             job = self.status(job_id)
             target, backend = self.targets[job["target"]], self.backends[job["target"]]
@@ -631,16 +638,21 @@ class Runner:
                          completion_verified=True)
             from .ollama_cleanup import cleanup_guard
             cleanup_deadline = time.monotonic() + target.cleanup_timeout
+            cleanup_stage = 'factory'
             guard = cleanup_guard(self.admission, target, lease.owner, backend,
                 observer=self.recovery.observer if self.recovery else None,
                 record=lambda **fields: self._update(job_id, **fields))
             if guard:
                 guard.prepare(cleanup_deadline)
+                guard.mark_phase('owned_unload')
+            else:
+                cleanup_stage = None
             proof = backend.cleanup(execution, cleanup_deadline)
             if guard:
                 proof = dict(proof, physical_ollama_idle=guard.verify(cleanup_deadline))
             if proof.get("completion_verified") is not True or proof.get("cleanup_verified") is not True:
                 raise CleanupPending("cleanup_not_verified")
+            cleanup_stage = None
             result = {"value": execution.value, "media_type": execution.media_type,
                       "artifact_available": execution.artifact is not None}
             if execution.artifact is not None:
@@ -654,11 +666,13 @@ class Runner:
             if lease:
                 lease.mark("cleanup_pending")
             self._update(job_id, state="cleanup_pending", error_code=exc.code,
+                         **cleanup_details(exc),
                          **({'lifecycle_failure': exc.code} if self.store.job(job_id).get('wallpaper_lifecycle') else {}))
         except Uncertain as exc:
             if lease:
                 lease.mark("reconciling")
             self._update(job_id, state="reconciling", error_code=exc.code,
+                         **cleanup_details(exc),
                          **({'lifecycle_failure': exc.code} if self.store.job(job_id).get('wallpaper_lifecycle') else {}))
         except Exception as exc:
             # Completed output must remain retrievable when only the ownership
@@ -680,7 +694,10 @@ class Runner:
                     lease.mark("reconciling")
                 except Exception:
                     pass
-            self._update(job_id, state="reconciling", error_code="supervision_or_storage_failure",
+            detail = cleanup_details(exc)
+            self._update(job_id, state="reconciling",
+                         error_code=detail['ollama_cleanup_failure']['reason'] if detail else "supervision_or_storage_failure",
+                         **detail,
                          **({'lifecycle_operator_error': str(exc)} if isinstance(exc, RecoveryRequired) and
                             self.store.job(job_id).get('wallpaper_lifecycle') else {}))
         finally:

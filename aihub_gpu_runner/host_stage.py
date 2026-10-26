@@ -146,9 +146,14 @@ class HostStage:
                                   backend, record=self.update)
             if guard:
                 guard.prepare(deadline)
-            if requests:
-                backend.cleanup_models({item['model'] for item in requests},
-                                       deadline)
+                guard.mark_phase('owned_unload')
+            try:
+                if requests:
+                    backend.cleanup_models({item['model'] for item in requests}, deadline)
+            except Exception as exc:
+                if guard:
+                    guard.report_failure(exc)
+                raise
             proof = {'completion_verified': True, 'cleanup_verified': True,
                     'policy': 'all_stage_requests_completed_then_owned_model_cleanup',
                     'request_count': len(requests)}

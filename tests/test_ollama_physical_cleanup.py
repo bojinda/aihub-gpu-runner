@@ -92,7 +92,7 @@ class PhysicalCleanupTests(unittest.TestCase):
         self.observer.driver_health = Mock(return_value={'reported_gpu_faults':False,'kernel_records_checked':10})
         self.births = {'202':'music-birth','303':'server-birth','304':'owned-runner-birth'}
         self.ollama_pids = {'303':'server-birth','304':'owned-runner-birth'}
-        self.observer.processes = Mock(side_effect=lambda ident, deadline:
+        self.observer.processes = Mock(side_effect=lambda ident, deadline, **kwargs:
             dict(self.ollama_pids) if ident['id']==self.metas['ollama']['Id'] else
             {'202':'music-birth'} if ident['running'] else {})
         self.memory = lambda:96 if self.clock.t<.5 else 1

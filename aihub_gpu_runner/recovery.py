@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 import csv
 import copy
+import errno
 import hashlib
 import io
 import math
@@ -26,6 +27,33 @@ from .core import (FINAL, NativeLock, RecoveryRequired, encode, guest_boot_id,
 
 class PersistenceUncertain(Exception):
     """Do not overwrite an outcome-uncertain durable write with a stale incident."""
+
+
+class ProcessDisappeared(RecoveryRequired):
+    """One exact /proc PID read returned ENOENT/ESRCH; not permission to skip it."""
+    def __init__(self, pid, error_number):
+        super().__init__('container_process_disappeared')
+        self.pid, self.errno = str(pid), error_number
+
+
+def process_birth(pid):
+    """Read a numeric kernel start time, retaining exact missing-PID evidence."""
+    pid = str(pid)
+    if not pid.isdecimal() or int(pid) <= 0:
+        raise RecoveryRequired('container_process_identity_unverified')
+    try:
+        raw = Path('/proc/' + pid + '/stat').read_text()
+    except OSError as exc:
+        if exc.errno in (errno.ENOENT, errno.ESRCH):
+            raise ProcessDisappeared(pid, exc.errno) from None
+        raise
+    try:
+        birth = raw.rsplit(')', 1)[1].split()[19]
+        if not raw.startswith(pid + ' (') or not birth.isdecimal():
+            raise ValueError()
+    except (IndexError, ValueError):
+        raise RecoveryRequired('container_process_stat_invalid') from None
+    return birth
 
 
 def valid_boot(value):
@@ -207,7 +235,7 @@ class RecoveryObserver:
             raise RecoveryRequired('wallpaper_generation_changed_during_placement')
         return {'physical_gpu_uuids': {r: self.p['gpu_uuids'][r] for r in resources}}
 
-    def processes(self, identity, deadline):
+    def processes(self, identity, deadline, *, on_missing=None):
         if not identity['running']:
             return {}
         raw = self.command([self.p['docker'], 'top', identity['id'], '-eo', 'pid'], deadline)
@@ -215,9 +243,22 @@ class RecoveryObserver:
         if not lines or lines[0].strip() != 'PID':
             raise RecoveryRequired('container_process_identity_unverified')
         pids = {}
+        listed = set()
         for line in lines[1:]:
-            pid = str(int(line.strip()))
-            pids[pid] = Path('/proc/' + pid + '/stat').read_text().rsplit(')', 1)[1].split()[19]
+            try:
+                pid = str(int(line.strip()))
+            except ValueError:
+                raise RecoveryRequired('container_process_identity_unverified') from None
+            if int(pid) <= 0 or pid in listed:
+                raise RecoveryRequired('container_process_identity_unverified')
+            listed.add(pid)
+            try:
+                pids[pid] = process_birth(pid)
+            except ProcessDisappeared:
+                # Strict by default for all existing recovery/lifecycle callers.
+                # Only the cleanup guard may supply a bound child-exit verifier.
+                if pid == str(identity['pid']) or on_missing is None or on_missing(pid) is not True:
+                    raise
         if str(identity['pid']) not in pids:
             raise RecoveryRequired('container_main_process_unverified')
         return pids

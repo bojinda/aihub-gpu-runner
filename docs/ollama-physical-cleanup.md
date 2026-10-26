@@ -1,6 +1,7 @@
 # Owned Ollama cleanup requires physical idle
 
-Offline review candidate against runner checkpoint `154511f`. Not deployed.
+Physical cleanup was introduced in Phase A (`93b26eb`, based on `154511f`).
+The process-exit follow-up described below is an offline development candidate.
 
 The normal API and GPU1 host-stage cleanup boundaries now capture a policy-bound
 Ollama container generation and process birth identities before the existing owned
@@ -56,3 +57,56 @@ compatibility and wallpaper already running at capture. The independent-GPU1
 review regression passes on base, fails on the original patch, and passes with
 the explicit legacy contract. Full Linux results are recorded with the review
 artifacts. No GPU backend is contacted by the tests.
+
+## Process-exit correction after Phase A validation
+
+This follow-up is based only on `93b26eb`; the Phase B pre-start recovery change
+is not included. Production remains on Phase A until a separate deployment decision.
+
+The `phase-a-gpu1-once-20261026` incident retained a pre-unload context but no
+physical observation or proof. Phase A lets exceptions during Docker process
+enumeration, `/proc` birth inspection, physical observation or its durable write
+escape into the worker's generic `supervision_or_storage_failure` handler. An
+Ollama model child can exit normally after unload, between `docker top` and its
+`/proc/PID/stat` read, or between NVIDIA's compute snapshot and the final birth
+check. Both interleavings were reproduced offline. Unknown GPU activity and an
+observation-write error also reproduce the same recorded incident signature.
+No original exception class or traceback survives in the recovered job or service
+journal, and the operator confirms only the generic error was captured. The
+historical exception therefore remains unconfirmed; the child's later absence
+and idle GPU do not uniquely identify the earlier failure.
+
+The shared birth reader now validates the stat identity/start time and translates
+only exact `ENOENT`/`ESRCH` reads into typed missing-PID evidence. Other observer
+callers remain strict. Only this cleanup guard supplies an explicit missing-child
+verifier, requiring a captured non-main Ollama PID, unchanged generation and lease
+bindings, completed owned work and a second exact absence check. Permission errors,
+invalid data, a live/reused PID, another service's PID and unknown children remain
+errors. Previously verified missing PIDs are checked again before and after each
+subsequent sample, even when absent from Docker and NVIDIA output.
+
+A raced process snapshot or stale NVIDIA row for that exact absent child is
+recorded with `process_snapshot_discarded: true` and resets consecutive stability.
+Remaining rows and all existing queue, driver, container, GPU health and calibrated
+memory checks still run. Persistent stale rows exhaust the existing deadline.
+Only three subsequent complete samples can authorize handoff; no inference,
+unload, recovery or service control is retried. An unknown PID or captured Ollama
+PID on an unleased GPU still rejects cleanup immediately.
+
+Failures persist `ollama_cleanup_failure` with a fixed reason code, probe phase,
+allowlisted exception type, bounded errno and optional service/PID. API-worker
+cleanup exceptions also use the specific sanitized reason as `error_code`; existing
+`CleanupPending`/`Uncertain` states and codes are preserved. Guard failures use
+the existing durable callback in both API workers and host stages. Exception
+messages, commands, paths, response bodies and credentials are never copied into
+this field. A failed diagnostic write cannot replace the original exception or
+authorize release. If durable storage cannot accept any writes, diagnostic
+durability cannot be guaranteed; ownership remains held.
+
+The deterministic exit-race tests exercise both guarded interleavings, stale
+enumerations, sample resets/deadlines, PID reuse, foreign activity, generation
+changes, host stages, error sanitization and persistence faults. Two native Linux
+tests use CPU-only subprocesses to exercise real `/proc` disappearance without a
+GPU, Docker daemon or network. Hardware behavior of this correction remains
+unvalidated and requires a separately approved controlled validation using a new
+job. The already recovered incident must never be recovered or resubmitted again.

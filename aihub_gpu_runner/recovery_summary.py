@@ -1,6 +1,8 @@
 """Read-only, aggregate recovery history. No recovery/backend/locking imports."""
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
+import hashlib
+import json
 
 
 def _time(value):
@@ -58,7 +60,7 @@ def _resolution_key(record):
     return None
 
 
-def summarize_recovery(state, jobs=(), *, at=None):
+def summarize_recovery(state, jobs=(), *, at=None, include_incidents=False):
     """First trustworthy observation per distinct incident; inclusive [now-7d, now].
 
     Invalid/naive/future dates cannot contribute to the count. Attention is
@@ -76,21 +78,25 @@ def summarize_recovery(state, jobs=(), *, at=None):
     # A later verified reboot audit can classify an earlier provisional incident.
     boot_leases = {_lease(r): _key(r) for r in autos + audits
                    if _lease(r) and _key(r) and _key(r)[0] == 'boot'}
-    seen = {}
+    seen, aliases = {}, {}
     def stamp(record, *fields):
         values = [_time(record.get(f)) for f in fields]
         valid = [t for t in values if t is not None and t <= at]
         return min(valid) if valid else None
-    def add(key, date):
+    def add(key, date, record=None):
         if key is not None and date is not None:
             seen[key] = min(seen.get(key, date), date)
+            aliases.setdefault(key, set()).add(('incident',) + key)
+            resolution = _resolution_key(record or {})
+            if resolution:
+                aliases[key].add(('resolution',) + resolution)
     def key(record):
         return boot_leases.get(_lease(record)) or _key(record)
     resolved = {_resolution_key(r) for r in audits if stamp(r, 'recovered_at') is not None}
     attention = (state.get('boot_recovery_status') == 'operator_required' or
                  state.get('recovery_worker_status') == 'operator_required')
     for record in audits:
-        add(key(record), stamp(record, 'recovered_at'))
+        add(key(record), stamp(record, 'recovered_at'), record)
     pending = {'observing', 'waiting_execution_deadline', 'stopping', 'stopped',
                'starting', 'verified', 'operator_required'}
     for record in autos:
@@ -98,7 +104,7 @@ def summarize_recovery(state, jobs=(), *, at=None):
         if not (incident_key and incident_key[0] == 'boot' and _key(record) != incident_key):
             # A provisional wallpaper observation predating the reboot cannot
             # supply that reboot's date. Its later boot audit/startup can.
-            add(incident_key, stamp(record, 'created_at', 'term_intent', 'start_intent', 'released_at'))
+            add(incident_key, stamp(record, 'created_at', 'term_intent', 'start_intent', 'released_at'), record)
         if record.get('phase') in pending and not (
                 _resolution_key(record) is not None and _resolution_key(record) in resolved):
             attention = True
@@ -113,7 +119,7 @@ def summarize_recovery(state, jobs=(), *, at=None):
         current, previous = _boot(identity.get('boot_id')), _boot(identity.get('previous_verified_boot'))
         date = stamp(record, 'created_at', 'start_intent')
         if current and current == _boot(boot) and previous and current != previous:
-            add(('boot', current), date)
+            add(('boot', current), date, record)
         # Old boot failures do not stay active after a newer verified boot.
         historical = current == verified_boot or (date and verified_time and date <= verified_time)
         if record.get('phase') in pending and not historical:
@@ -123,12 +129,28 @@ def summarize_recovery(state, jobs=(), *, at=None):
             _dict(job).get('error_code') == 'supervisor_restart_unresolved_owner')
            for job in jobs):
         attention = True
-    return {'schema_version': 1,
+    summary = {'schema_version': 1,
             'incidents_7d': sum(at - timedelta(days=7) <= date <= at for date in seen.values()),
             'operator_required': bool(attention), 'snapshot_at': at.isoformat()}
+    if include_incidents:
+        # Opaque identities only, never raw leases, job IDs, boot IDs or payloads.
+        # Resolution aliases preserve acknowledgment when later evidence groups
+        # an already observed wallpaper incident into a single reboot incident.
+        def opaque(key):
+            # Current configuration scope is mutable; historical incident
+            # identity must survive a later authorized scope transition.
+            return hashlib.sha256(json.dumps(['recovery-incident-v1', key],
+                separators=(',', ':'), ensure_ascii=True).encode()).hexdigest()
+        incidents = [{'id': opaque(('incident',) + key), 'first_seen': date.isoformat(),
+                      'aliases': sorted(opaque(alias) for alias in aliases[key])}
+                     for key, date in seen.items() if at - timedelta(days=7) <= date <= at]
+        if len(incidents) > 4096 or sum(len(i['aliases']) for i in incidents) > 8192:
+            raise RuntimeError('recovery_incident_inventory_too_large')
+        summary['incidents'] = sorted(incidents, key=lambda i: i['id'])
+    return summary
 
 
-def read_recovery_summary(store):
+def read_recovery_summary(store, *, include_incidents=False):
     state = store.read('ownership.json')
     if not isinstance(state, dict):
         raise RuntimeError('recovery_state_unavailable')
@@ -137,4 +159,4 @@ def read_recovery_summary(store):
     owners = _dict(state.get('owners'))
     ids = {o.get('job_id') for o in owners.values() if isinstance(o, dict)}
     jobs = [store.read(store.job_name(job_id), {}) for job_id in ids if isinstance(job_id, str)]
-    return summarize_recovery(state, jobs)
+    return summarize_recovery(state, jobs, include_incidents=include_incidents)

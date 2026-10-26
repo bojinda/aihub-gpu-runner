@@ -32,6 +32,9 @@ class Application:
             if method == 'GET' and path == '/recovery-summary':
                 from .recovery_summary import read_recovery_summary
                 return 200, 'application/json', encode(read_recovery_summary(self.runner.store))
+            if method == 'GET' and path == '/recovery-incidents':
+                from .recovery_summary import read_recovery_summary
+                return 200, 'application/json', encode(read_recovery_summary(self.runner.store, include_incidents=True))
             parts = path.split("/")
             if len(parts) in (3, 4) and parts[:2] == ["", "jobs"]:
                 job_id = parts[2]

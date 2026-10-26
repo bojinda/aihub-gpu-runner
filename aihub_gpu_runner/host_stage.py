@@ -140,12 +140,20 @@ class HostStage:
                     'host_requests_complete', 'cleanup_pending'):
                 raise RecoveryRequired('host_request_persistence_unconfirmed')
             backend = OllamaBackend(self.target, self.transport_factory(self.target.base_url))
+            from .ollama_cleanup import cleanup_guard
+            deadline = time.monotonic() + self.target.cleanup_timeout
+            guard = cleanup_guard(self.admission, self.target, self.lease.owner if self.lease else {},
+                                  backend, record=self.update)
+            if guard:
+                guard.prepare(deadline)
             if requests:
                 backend.cleanup_models({item['model'] for item in requests},
-                                       time.monotonic() + self.target.cleanup_timeout)
+                                       deadline)
             proof = {'completion_verified': True, 'cleanup_verified': True,
                     'policy': 'all_stage_requests_completed_then_owned_model_cleanup',
                     'request_count': len(requests)}
+            if guard:
+                proof['physical_ollama_idle'] = guard.verify(deadline)
             if self.dual:
                 # Only known-complete calls plus verified owned unload can reach restoration.
                 self.lease.mark('restore_intent')

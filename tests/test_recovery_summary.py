@@ -77,7 +77,7 @@ class SummaryTests(unittest.TestCase):
         self.assertFalse(self.summary(state)['operator_required'])
 
     def test_unresolved_incidents_warn_even_when_undated_or_outside_window(self):
-        for phase in ('observing', 'waiting_execution_deadline', 'stopping', 'starting', 'operator_required'):
+        for phase in ('observing', 'prestart_observing', 'waiting_execution_deadline', 'stopping', 'starting', 'operator_required'):
             entry = wall(days=9, phase=phase)
             entry.pop('created_at')
             result = self.summary({'automatic_recovery': {entry['id']: entry}})

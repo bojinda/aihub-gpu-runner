@@ -77,8 +77,18 @@ class WallpaperLifecycle:
         record = {'identity': self.identity(owner, resources), 'phase': 'prepared',
                   'original_container': current, 'created_at': timestamp(),
                   'startup_deadline': expiry}
+        if self.m.prestart and self.m.prestart.enabled:
+            record['prestart_binding'] = self.m.prestart.capture(owner, resources)
         self.m.update_job(job_id, wallpaper_lifecycle=record, boot_id=owner['boot_id'])
-        self.observer.stopped_ready(resources, deadline)
+        try:
+            self.observer.stopped_ready(resources, deadline)
+        except (CleanupPending, Uncertain) as exc:
+            # Only this acknowledged, pre-control boundary grants the new path.
+            # General RecoveryRequired and uncertain durable writes stay latched.
+            if self.m.prestart and self.m.prestart.enabled:
+                self.save(job_id, prestart_failure={'prepared_sha256': digest(record),
+                    'error': exc.code, 'recorded_at': timestamp()})
+            raise
         self.save(job_id, phase='starting', start_intent=timestamp())
         try:
             self.observer.start(current, deadline)

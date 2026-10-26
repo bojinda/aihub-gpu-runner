@@ -58,6 +58,20 @@ def validate_policy(policy, admission, targets):
             'max_incidents', 'window_seconds', 'exclusive_wallpaper_access'}
     if on_demand(targets):
         keys.add('stopped_idle_memory_mb')
+    if isinstance(policy, dict) and 'never_submitted_prestart_recovery' in policy:
+        keys.add('never_submitted_prestart_recovery')
+        gate = policy['never_submitted_prestart_recovery']
+        if (not on_demand(targets) or not isinstance(gate, dict) or set(gate) != {
+                'enabled', 'ingress_isolation_verified', 'caller_exclusion_ref'} or
+                gate['enabled'] is not True or gate['ingress_isolation_verified'] is not True or
+                not isinstance(gate['caller_exclusion_ref'], str) or not gate['caller_exclusion_ref'].strip() or
+                set(policy.get('services', {})) != {'wallpaper', 'music', 'ollama'} or
+                any(n not in targets or targets[n].kind != kind for n, kind in
+                    (('wallpaper', 'comfy'), ('music', 'comfy'), ('ollama', 'ollama'))) or
+                targets['wallpaper'].resources != ('gpu0', 'gpu1') or
+                targets['music'].resources != ('gpu0',) or targets['ollama'].resources != ('gpu1',) or
+                any(targets[n].mode_switch is not None for n in ('wallpaper', 'music', 'ollama'))):
+            raise ValueError('prestart_recovery_requires_explicit_isolated_paired_policy')
     if not isinstance(policy, dict) or set(policy) != keys or policy['scope'] != admission.scope:
         raise ValueError('recovery_policy_scope_or_shape_invalid')
     for key in ('docker', 'nvidia_smi', 'journalctl'):
@@ -409,9 +423,12 @@ class RecoveryManager:
         self.thread = None
         self.wake, self.stopping = threading.Event(), threading.Event()
         self.lifecycle = None
+        self.prestart = None
         if on_demand(targets):
             from .wallpaper_lifecycle import WallpaperLifecycle
+            from .prestart_recovery import PrestartRecovery
             self.lifecycle = WallpaperLifecycle(self)
+            self.prestart = PrestartRecovery(self)
 
     def start(self):
         """One lifetime-managed worker; neither scheduler nor inference pool runs recovery."""
@@ -507,6 +524,8 @@ class RecoveryManager:
         self.update_job(job_id, **fields)
 
     def startup(self):
+        if self.prestart:
+            self.prestart.finalize_released()
         if self.lifecycle:
             self.lifecycle.finalize_released()
         boot = self.a.boot_reader()
@@ -564,6 +583,9 @@ class RecoveryManager:
             if boot == state['verified_boot']:
                 return True
             with self.locks(resources, boot_owners=state['owners']):
+                records = [self.store.job(o['job_id']).get('wallpaper_lifecycle', {}) for o in state['owners'].values()]
+                if any(r.get('phase') == 'prepared' and r.get('prestart_binding') for r in records):
+                    raise RecoveryRequired('prestart_recovery_requires_same_boot')
                 for owner in state['owners'].values():
                     if not valid_boot(owner.get('boot_id')) or owner['boot_id'] == boot:
                         self.update_job(owner['job_id'], recovery_status='operator_required',
@@ -663,6 +685,8 @@ class RecoveryManager:
             return
         self.last_tick = time.monotonic()
         try:
+            if self.prestart:
+                self.prestart.finalize_released()
             if self.lifecycle:
                 self.lifecycle.finalize_released()
             state = self.a.snapshot()
@@ -754,6 +778,12 @@ class RecoveryManager:
                 if incident['phase'] in ('operator_required', 'released'):
                     return
                 deadline = time.monotonic() + self.p['observation_timeout']
+                if self.prestart and job.get('wallpaper_lifecycle', {}).get('phase') == 'prepared' and (
+                        self.prestart.enabled or job['wallpaper_lifecycle'].get('prestart_binding')):
+                    if reboot:
+                        raise RecoveryRequired('prestart_recovery_requires_same_boot')
+                    self.prestart.recover(incident, owner, resources)
+                    return
                 if reboot:
                     if job.get('execution_container'):
                         incident = self.save(incident, container=job['execution_container'])
@@ -778,6 +808,12 @@ class RecoveryManager:
                     self.lifecycle.recover(incident, owner, resources, self.store.job(owner['job_id']), deadline)
                 else:
                     self.wallpaper(incident, owner, resources, job, deadline)
+        except PersistenceUncertain:
+            if (self.prestart and job.get('wallpaper_lifecycle', {}).get('prestart_binding') and
+                    owner['lease_id'] not in self.a.snapshot().get('wallpaper_prestart_failure_receipts', {})):
+                self.update_job(owner['job_id'], recovery_status='operator_required',
+                                recovery_error='prestart_persistence_uncertain')
+            raise
         except (RecoveryRequired, CleanupPending, Uncertain, ValueError, KeyError, OSError) as exc:
             if isinstance(exc, RecoveryRequired) and str(exc) == 'recovery_execution_still_supervised':
                 return

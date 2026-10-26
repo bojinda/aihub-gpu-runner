@@ -91,7 +91,7 @@ def summarize_recovery(state, jobs=(), *, at=None):
                  state.get('recovery_worker_status') == 'operator_required')
     for record in audits:
         add(key(record), stamp(record, 'recovered_at'))
-    pending = {'observing', 'waiting_execution_deadline', 'stopping', 'stopped',
+    pending = {'observing', 'prestart_observing', 'waiting_execution_deadline', 'stopping', 'stopped',
                'starting', 'verified', 'operator_required'}
     for record in autos:
         incident_key = key(record)

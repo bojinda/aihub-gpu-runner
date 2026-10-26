@@ -199,12 +199,12 @@ class PhysicalCleanupTests(unittest.TestCase):
             self.gpu_override=row
             with self.subTest(row=row),self.assertRaises(RecoveryRequired):self.guard.verify(2)
 
-    def test_driver_fault_temperature_utilization_and_ecc_fail_without_polling(self):
+    def test_driver_fault_temperature_invalid_utilization_and_ecc_fail_without_polling(self):
         self.prepare()
         self.observer.driver_health.side_effect=RecoveryRequired('kernel_gpu_driver_fault')
         with self.assertRaisesRegex(RecoveryRequired,'driver_fault'):self.guard.verify(2)
         self.observer.driver_health.side_effect=None
-        for row in (f'{GPU1},1,99,30,0,No',f'{GPU1},1,0,99,0,No',f'{GPU1},1,0,30,1,No'):
+        for row in (f'{GPU1},1,101,30,0,No',f'{GPU1},1,0,99,0,No',f'{GPU1},1,0,30,1,No'):
             self.gpu_override=row
             with self.subTest(row=row),self.assertRaises(RecoveryRequired):self.guard.verify(2)
         self.assertAlmostEqual(self.clock.t,.036442)

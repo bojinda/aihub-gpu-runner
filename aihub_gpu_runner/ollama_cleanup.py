@@ -21,10 +21,15 @@ class _ProcessPending(Exception):
     """Discard a raced/stale sample; never treat disappearance as an idle proof."""
 
 
+class _UtilizationPending(Exception):
+    """A complete safe observation is still above the accepted idle utilization."""
+
+
 # Never persist arbitrary exception strings, paths, commands, response bodies or
 # user data. These are fixed runner-owned reason codes, not a message regex.
 _SAFE_REASONS = {
     'backend_deadline', 'ollama_cleanup_uncertain', 'ollama_unload_not_confirmed',
+    'ollama_cleanup_utilization_pending',
     'ollama_cleanup_calibration_or_scope_unverified', 'ollama_cleanup_owner_boot_or_policy_changed',
     'ollama_cleanup_job_binding_unverified', 'ollama_cleanup_host_completion_unverified',
     'ollama_cleanup_completion_unverified', 'ollama_cleanup_on_demand_wallpaper_must_be_stopped',
@@ -265,6 +270,7 @@ class OllamaCleanupGuard:
         uuid_resources = {self.p['gpu_uuids'][r]: r for r in self.resources}
         usage = {s: {r: 0 for r in self.resources} for s in identities}
         seen, observed_processes = set(), {}
+        foreign_compute = False
         self.mark_phase('compute_apps')
         raw = self.observer.command([self.p['nvidia_smi'],
             '--query-compute-apps=gpu_uuid,pid,used_gpu_memory', '--format=csv,noheader,nounits'], deadline)
@@ -292,6 +298,7 @@ class OllamaCleanupGuard:
                     continue  # Stale compute row: discard, never count this sample.
                 raise RecoveryRequired('ollama_cleanup_unknown_or_duplicate_gpu_process')
             service, birth = known[pid]
+            foreign_compute |= service != 'ollama'
             if service == 'ollama' and self.context['ollama_processes'].get(pid) != birth:
                 raise RecoveryRequired('ollama_cleanup_new_or_reused_process')
             observed_processes[pid] = birth
@@ -307,11 +314,9 @@ class OllamaCleanupGuard:
                 raise RecoveryRequired('ollama_cleanup_physical_gpu_unverified')
             _, memory, utilization, temperature, ecc, retired = [x.strip() for x in rows[0]]
             memory, utilization, temperature = map(self.number, (memory, utilization, temperature))
-            if (temperature > self.p['max_temperature_c'] or ecc not in ('0', '[N/A]', 'N/A') or
+            if (utilization > 100 or temperature > self.p['max_temperature_c'] or ecc not in ('0', '[N/A]', 'N/A') or
                     retired not in ('No', 'no', '0', '[N/A]', 'N/A')):
                 raise RecoveryRequired('ollama_cleanup_gpu_health_unverified')
-            if utilization > self.p['idle_utilization_pct']:
-                raise RecoveryRequired('ollama_cleanup_gpu_activity_unexplained')
             gpus[resource] = {'uuid': uuid, 'memory_mb': memory, 'utilization_pct': utilization,
                               'temperature_c': temperature}
         for pid, birth in observed_processes.items():
@@ -353,6 +358,14 @@ class OllamaCleanupGuard:
             if not owned_work:
                 raise RecoveryRequired('ollama_cleanup_unowned_memory_residency')
             pending = True
+        # Only after every identity/queue/driver/health check and the durable
+        # observation write may normal post-unload utilization consume the
+        # existing budget. Foreign compute on an owned GPU remains unexplained;
+        # independent GPU0 Music is outside this GPU1 observation as before.
+        if any(g['utilization_pct'] > self.p['idle_utilization_pct'] for g in gpus.values()):
+            if not owned_work or foreign_compute:
+                raise RecoveryRequired('ollama_cleanup_gpu_activity_unexplained')
+            raise _UtilizationPending()
         remaining(deadline, CleanupPending)
         if self.sample_exits:
             raise _ProcessPending()
@@ -363,18 +376,30 @@ class OllamaCleanupGuard:
     @_report_errors
     def verify(self, deadline):
         stable = 0
-        while True:
-            self.mark_phase('deadline')
-            remaining(deadline, CleanupPending)
-            try:
-                observation = self.sample(deadline)
-            except (_MemoryPending, _ProcessPending):
-                stable = 0
-            else:
-                stable += 1
-                if stable >= self.p['samples']:
-                    remaining(deadline, CleanupPending)
-                    return {'policy_id': self.policy_id, 'binding': binding(self.owner),
-                            'stable_samples': stable, 'observation': observation,
-                            'policy': 'owned_unload_then_calibrated_physical_idle'}
-            time.sleep(min(self.observer.poll_interval, remaining(deadline, CleanupPending)))
+        pending = None
+        try:
+            while True:
+                self.mark_phase('deadline')
+                remaining(deadline, CleanupPending)
+                delay = self.observer.poll_interval
+                try:
+                    observation = self.sample(deadline)
+                except _UtilizationPending:
+                    stable = 0
+                    pending = 'ollama_cleanup_utilization_pending'
+                    delay = 1.0
+                except (_MemoryPending, _ProcessPending):
+                    stable, pending = 0, None
+                else:
+                    stable += 1
+                    if stable >= self.p['samples']:
+                        remaining(deadline, CleanupPending)
+                        return {'policy_id': self.policy_id, 'binding': binding(self.owner),
+                                'stable_samples': stable, 'observation': observation,
+                                'policy': 'owned_unload_then_calibrated_physical_idle'}
+                self.mark_phase('deadline')
+                time.sleep(min(delay, remaining(deadline, CleanupPending)))
+        except CleanupPending as exc:
+            if pending and exc.code == 'backend_deadline':
+                raise CleanupPending(pending) from None
+            raise

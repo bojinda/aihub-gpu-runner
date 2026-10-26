@@ -17,9 +17,9 @@ caller's existing job-update lock and durable store. Only already-captured Ollam
 processes belonging to known-complete owned work may have their memory convergence
 polled. Any failed memory sample resets the consecutive sample count.
 
-Unknown/new/reused processes, activity on an unleased GPU, changed bindings or
+Unknown compute/reused processes, activity on an unleased GPU, changed bindings or
 containers, another service's excessive residency, nonempty/unverified expected
-queues, GPU activity above the accepted idle limit, driver faults, observation
+queues, GPU activity without the bounded settling proof, driver faults, observation
 timeouts and storage errors retain ownership. These failures are not globally
 reclassified as retryable. Neither `RecoveryObserver.gpu_sample()` nor wallpaper's
 readiness/recovery exception handling was changed.
@@ -46,8 +46,9 @@ cases are explicit, tested scope boundaries, not new policy authorization.
 The fix does not enforce raw API network admission. A process already present
 when capture occurs is trusted under the existing owned-execution and caller-
 exclusion assumptions; this is not proof that an unauthorized same-container
-client never existed. A disappearing PID that cannot be safely attributed still
-fails closed. Gateway/direct-client isolation remains separate work.
+client never existed. A disappearing PID without a verified observed lifetime
+still fails closed. Direct-client isolation remains separate work. The bounded
+post-unload child exception and its attribution limits are specified below.
 
 Validation: deterministic offline tests cover a 36.442 ms handoff, delayed memory
 convergence, three consecutive samples, no duplicate inference/unload after lost
@@ -158,3 +159,49 @@ GPU0 Music coexistence, API and host-stage wiring, reconnect/restart behavior an
 combined verified child exit plus utilization settling. This follow-up has only
 offline validation. Deployment and controlled hardware validation require a
 separate decision; the current production lease is left for separate recovery.
+
+## Bounded noncompute child settling (candidate on production `923e2a8`)
+
+This is an explicit, narrow change to the previous new-PID-fatal rule. It does
+not establish subprocess provenance. After known owned-request completion and
+the existing confirmed one-time model unload, a newly observed child in the
+unchanged Ollama container may delay verification within the ORIGINAL cleanup
+deadline. Its PID and kernel birth are quarantined separately from the immutable
+pre-unload capture, never adopted as an owned model runner. At most 64 distinct
+new lifetimes may be tracked; continuing turnover beyond that holds ownership.
+
+Every sample still checks the lease/boot/policy/lock binding, exact container
+generation/main process, empty models and expected queues, driver/physical GPU
+health and calibrated memory/utilization. The Ollama inventory is rechecked
+after GPU observations. A new child in ANY compute-app row, on either GPU and
+even with zero reported VRAM, is fatal; its eventual exit cannot excuse that
+observation. PID reuse, duplicate/unknown compute, new residency, identity drift,
+unreadable process metadata and persistence uncertainty remain fatal.
+
+A sample with a new live child or any observed turnover contributes zero idle
+samples and resets stability. Each quarantined child must be positively absent
+(exact ENOENT/ESRCH, same PID); a live PID omitted from Docker top is insufficient.
+Retired births remain checked to reject reuse even outside Docker/compute lists.
+Only then may at least THREE fresh complete physical-idle samples count (a larger
+configured sample count is preserved). No fixed grace, extended timeout, capture
+rebasing, extra unload, inference retry, ownership recovery or scheduler change.
+Deadline exhaustion retains ownership with `ollama_cleanup_process_settling_pending`.
+
+The trusted-deployment justification is present-time quiescence, not historical
+request attribution: an observed noncompute child that is verified gone cannot
+continue executing at handoff. We do NOT claim it was a discovery helper or was
+spawned by this lease. Direct Ollama clients are not isolated. A direct request
+using a previously captured runner, or work entirely between observations, can
+remain indistinguishable from normal backend behavior. Empty residency, container
+membership and eventual idle do not prove origin. This residual attribution race
+also exists on the old successful cleanup path; this candidate accepts bounded
+noncompute turnover under that same operational trust, not adversarial ingress.
+If authenticated request provenance is required, this exception is insufficient
+and must not be deployed. No ingress-isolation work is included here.
+
+Comparison: no-turnover successful cleanup keeps the original idle thresholds,
+polling cadence, three production samples and one unload. A new noncompute child
+previously caused immediate `ollama_cleanup_new_or_reused_process`; it can now
+only defer that same idle proof until verified exit. New compute, reused PIDs and
+uncertain observations still retain ownership. Diagnostics record quarantined
+births in `settling_ollama_processes` without labelling them request-owned.

@@ -146,12 +146,9 @@ class PhysicalCleanupTests(unittest.TestCase):
         with self.assertRaisesRegex(RecoveryRequired,'unknown_or_duplicate'):self.guard.verify(2)
         self.assertAlmostEqual(self.clock.t,.036442)
 
-    def test_new_and_reused_ollama_processes_fail_closed(self):
-        for pids in ({'303':'server-birth','305':'new-client'},{'303':'server-birth','304':'reused'}):
-            with self.subTest(pids=pids):
-                self.ollama_pids={'303':'server-birth','304':'owned-runner-birth'}
-                self.prepare();self.ollama_pids=pids
-                with self.assertRaisesRegex(RecoveryRequired,'new_or_reused'):self.guard.verify(2)
+    def test_reused_ollama_process_fails_closed(self):
+        self.prepare(); self.ollama_pids['304'] = 'reused'
+        with self.assertRaisesRegex(RecoveryRequired,'new_or_reused'):self.guard.verify(2)
 
     def test_pid_birth_change_after_gpu_sample_is_rejected(self):
         self.prepare();self.births['304']='reused-after-top'

@@ -29,9 +29,14 @@ supervision, all mount sources/destinations/options, nested mounts and GPU expos
 Do not copy private paths, environment values or credentials into public reports.
 Retain the exact reviewed inspect and approval files privately with mode 0600.
 
-This correction accepts only explicit NVIDIA DeviceRequests: one request with
-`Driver=nvidia`, `Count=0`, both original physical UUIDs in GPU0/GPU1 order,
-`Capabilities=[["gpu"]]`, `Options={}`, no direct `Devices`, and `Privileged=false`.
+This correction accepts only one explicit GPU DeviceRequest in either of two
+exact forms: `Driver=nvidia`, `Count=0`, both original physical UUIDs in GPU0/GPU1
+order, `Capabilities=[["gpu"]]`, `Options={}`; or the observed AI-HUB CDI form,
+`Driver=cdi`, `Count=0`, both `nvidia.com/gpu=GPU-...` identifiers in the same
+physical order, `Capabilities=null`, `Options=null`. Both forms require no direct
+`Devices` and `Privileged=false`. CDI `all`, duplicate/reordered/foreign devices,
+extra requests/options or other forms are refused. The complete reviewed
+configuration hash still binds the exact representation without normalization.
 An unsupported representation stops the command for review; do not loosen this
 check to accommodate it. All current executable settings and mount attributes
 remain fingerprinted by the existing contract function without new normalization.
@@ -148,8 +153,11 @@ Local Ubuntu 22.04 / Python 3.12, with real POSIX flocks and AtomicStore writes 
 private temporary Linux directories; all Docker, GPU and backend responses are
 synthetic. No production host is involved.
 
-- Focused `tests.test_reboot_contract`: **16 tests passed**.
-- Full `validate_offline.py`: **464 tests, 0 failures, 0 errors, 1 existing skip**.
+- Focused `tests.test_reboot_contract`: **18 tests passed**, including the exact
+  observed CDI envelope and rejection of broad, duplicate, foreign or altered CDI
+  requests. The CDI correction is based on reviewed commit `5027c71d6d13710c4e66e0bd69918c2e9fc65273`.
+- Full native Linux `validate_offline.py`: **466 tests, 0 failures, 0 errors,
+  1 existing skip**.
 - The existing skip is the guarded historical meeting-launcher harness.
 - Focused coverage includes incorrect/missing approval bindings, complete-config
   drift, GPU exposure, active/supervised wallpaper, queues, attribution, idle/health
@@ -159,6 +167,9 @@ synthetic. No production host is involved.
   and later-lease protection.
 
 Local validation artifacts (ignored by Git):
-`test-results/reboot-contract/focused-linux.log`, `full-linux.log`, `full-linux.json`.
+`test-results/reboot-contract/focused-linux.log`, `full-linux-native.log`,
+`full-linux-native.json`. The first Windows-mounted Linux run is also retained:
+an existing 50 ms synthetic job test returned `reconciling`; it passed in isolation
+and in the complete native-filesystem run without modifying its code or deadline.
 The JSON records the tested Python source hashes. These tests establish offline
 behavior; they do not constitute production approval or kernel stability evidence.

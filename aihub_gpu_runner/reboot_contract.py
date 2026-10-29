@@ -47,13 +47,18 @@ def reviewed_approval(evidence, reviewed):
             evidence['previous_boot'] != evidence['current_boot'], 'genuine_reboot_required')
     require(isinstance(evidence['gpu_uuids'], dict) and set(evidence['gpu_uuids']) == set(RESOURCES),
             'paired_gpu_bindings_required')
-    # This correction supports the existing explicit NVIDIA UUID DeviceRequests
-    # exposure only. Privileged/direct-device/all-device forms need separate work.
+    # Exact explicit UUID envelopes only. Docker's CDI driver is used on AI-HUB;
+    # keep its null capability/options fields bound, rather than normalizing them.
+    # Privileged/direct-device/all-device forms still need separate work.
     host = reviewed['HostConfig']
+    nvidia = [{'Driver': 'nvidia', 'Count': 0,
+        'DeviceIDs': [evidence['gpu_uuids'].get(r) for r in RESOURCES],
+        'Capabilities': [['gpu']], 'Options': {}}]
+    cdi = [{'Driver': 'cdi', 'Count': 0,
+        'DeviceIDs': ['nvidia.com/gpu=' + evidence['gpu_uuids'][r] for r in RESOURCES],
+        'Capabilities': None, 'Options': None}]
     require(host.get('Privileged') is False and not host.get('Devices') and
-            host.get('DeviceRequests') == [{'Driver': 'nvidia', 'Count': 0,
-                'DeviceIDs': [evidence['gpu_uuids'].get(r) for r in RESOURCES],
-                'Capabilities': [['gpu']], 'Options': {}}], 'explicit_paired_gpu_exposure_required')
+            host.get('DeviceRequests') in (nvidia, cdi), 'explicit_paired_gpu_exposure_required')
 
 
 def validate_pending(manager, state, evidence):

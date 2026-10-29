@@ -195,6 +195,40 @@ class RebootContractTests(unittest.TestCase):
         with self.assertRaisesRegex(RecoveryRequired,'explicit_paired_gpu_exposure'):c.recover()
         c.held()
 
+    def test_observed_aihub_cdi_uuid_envelope_can_be_explicitly_reviewed(self):
+        c=self.c
+        request=[{'Driver':'cdi','Count':0,'DeviceIDs':['nvidia.com/gpu='+u for u in (GPU0,GPU1)],
+                  'Capabilities':None,'Options':None}]
+        c.reviewed['HostConfig']['DeviceRequests']=copy.deepcopy(request)
+        c.metadata['wallpaper']['HostConfig']['DeviceRequests']=copy.deepcopy(request)
+        c.evidence['reviewed_metadata_sha256']=digest(c.reviewed)
+        c.evidence['new_contract_sha256']=RecoveryObserver.contract(c.reviewed)
+        c.candidate['services']['wallpaper']['contract_sha256']=c.evidence['new_contract_sha256']
+        c.recover();c.completed()
+
+    def test_cdi_all_foreign_duplicate_reordered_extra_or_changed_envelopes_are_refused(self):
+        c=self.c
+        original={'Driver':'cdi','Count':0,'DeviceIDs':['nvidia.com/gpu='+u for u in (GPU0,GPU1)],
+                  'Capabilities':None,'Options':None}
+        mutations=[{'DeviceIDs':['nvidia.com/gpu=all']},{'DeviceIDs':['nvidia.com/gpu='+GPU0]*2},
+                   {'DeviceIDs':['nvidia.com/gpu='+GPU1,'nvidia.com/gpu='+GPU0]},
+                   {'DeviceIDs':['nvidia.com/gpu='+GPU0,'nvidia.com/gpu=GPU-33333333-3333-4333-8333-333333333333']},
+                   {'Count':-1},{'Capabilities':[['gpu']]},{'Options':{}},{'Driver':'other'},
+                   {'ExtraField':'unreviewed-extension'}]
+        for mutation in mutations:
+            with self.subTest(mutation=mutation):
+                request=dict(copy.deepcopy(original),**mutation)
+                c.reviewed['HostConfig']['DeviceRequests']=[request]
+                c.evidence['reviewed_metadata_sha256']=digest(c.reviewed)
+                c.evidence['new_contract_sha256']=RecoveryObserver.contract(c.reviewed)
+                with self.assertRaisesRegex(RecoveryRequired,'explicit_paired_gpu_exposure'):c.recover()
+                c.held()
+        c.reviewed['HostConfig']['DeviceRequests']=[original,original]
+        c.evidence['reviewed_metadata_sha256']=digest(c.reviewed)
+        c.evidence['new_contract_sha256']=RecoveryObserver.contract(c.reviewed)
+        with self.assertRaisesRegex(RecoveryRequired,'explicit_paired_gpu_exposure'):c.recover()
+        c.held()
+
     def test_running_paused_restarting_dead_and_changed_generation_are_rejected(self):
         c=self.c
         for update in ({'Running':True,'Pid':900},{'Paused':True},{'Restarting':True},{'Dead':True},{'StartedAt':'other'}):

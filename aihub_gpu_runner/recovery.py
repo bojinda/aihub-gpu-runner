@@ -683,14 +683,15 @@ class RecoveryManager:
                 boot_recovery_error=error(exc), boot_recovery_attempt_boot=boot))
             return False
 
-    def boot_readiness(self, resources, deadline):
+    def boot_readiness(self, resources, deadline, *, startup_record=None):
         proof = (self.observer.stopped_ready(resources, deadline) if self.lifecycle else
                  self.observer.ready(resources, deadline))
-        current = self.boot_generation(deadline)
+        current = self.boot_generation(deadline, startup_record=startup_record)
         return dict(proof, boot_wallpaper_container=current, verified_boot=self.a.boot_reader())
 
-    def boot_generation(self, deadline):
-        record = self.a.snapshot().get('boot_startups', {}).get(self.a.boot_reader(), {})
+    def boot_generation(self, deadline, *, startup_record=None):
+        record = (self.a.snapshot().get('boot_startups', {}).get(self.a.boot_reader(), {})
+                  if startup_record is None else startup_record)
         current = self.observer.container('wallpaper', deadline)
         if record.get('phase') != 'ready' or current != record['running_container']:
             raise RecoveryRequired('boot_wallpaper_generation_changed_before_handoff')
@@ -976,7 +977,7 @@ class RecoveryManager:
         if job['state'] not in FINAL:
             self.update_job(job_id, state='failed' if execution_error else 'success', error_code=execution_error)
 
-    def finish(self, incident, owner, resources, proof):
+    def finish(self, incident, owner, resources, proof, *, operator_transition=None):
         # Proof -> terminal job -> atomic audit+release. Crash at any edge is resumable.
         readiness = proof.get('readiness', proof)
         ready_key = 'idle_ready' if self.lifecycle else 'backend_ready'
@@ -992,14 +993,24 @@ class RecoveryManager:
                 raise RecoveryRequired('recovery_owner_changed_before_release')
             if self.store.job(owner['job_id'])['state'] not in FINAL:
                 raise RecoveryRequired('recovery_job_not_terminal')
+            if operator_transition is not None:
+                from .reboot_contract import commit_transition
+                commit_transition(self, state, operator_transition, proof)
             state['automatic_recovery'][incident['id']] = dict(incident, phase='released', released_at=timestamp())
             if not any(e.get('incident_id') == incident['id'] for e in state.setdefault('recoveries', [])):
-                state['recoveries'].append({'incident_id': incident['id'], 'identity': incident['identity'],
+                audit = {'incident_id': incident['id'], 'identity': incident['identity'],
                     'container': incident.get('container'), 'observed_boot': self.a.boot_reader(),
-                    'proof': proof, 'recovered_at': timestamp(), 'provenance': 'runner_observations'})
+                    'proof': proof, 'recovered_at': timestamp(), 'provenance': 'runner_observations'}
+                if operator_transition is not None:
+                    audit['operator_contract_transition'] = operator_transition['audit']
+                state['recoveries'].append(audit)
             for r in resources:
                 del state['owners'][r]
-        self.change(release)
+        if operator_transition is not None:
+            with self.jobs.held():
+                self.change(release)
+        else:
+            self.change(release)
 
 
 def binding(owner):

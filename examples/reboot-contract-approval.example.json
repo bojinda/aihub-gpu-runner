@@ -1,0 +1,30 @@
+{
+  "approval_ref": "REPLACE_WITH_EXPLICIT_OPERATOR_REVIEW_REFERENCE",
+  "complete_configuration_reviewed": false,
+  "gpu_exposure_reviewed": false,
+  "mounts_reviewed": false,
+  "executable_settings_reviewed": false,
+  "operator_approved_contract_transition": false,
+  "participating_callers_excluded": false,
+  "job_id": "stage-797c2484bd75dec25e57734277800aa1a62b26d3f68c581c",
+  "request_hash": "REPLACE_FROM_EXACT_HELD_JOB_AND_BOTH_OWNERS",
+  "lease_id": "faace2e6239449878353de5e19528255",
+  "target": "wallpaper",
+  "previous_boot": "2dda43eb-933f-453b-bad6-8307444f1b10",
+  "current_boot": "26db72e8-2232-4960-b54f-b3a4b9fc5dad",
+  "scope": "REPLACE_FROM_UNCHANGED_ACTIVE_CONFIG_SCOPE",
+  "policy_id": "REPLACE_FROM_ORIGINAL_INSTALLED_POLICY",
+  "old_contract_sha256": "05c2ab65354b9322cdfe661d462bb3597f2c8beeab04b5f59216c380d69058a8",
+  "new_contract_sha256": "5f34f221e03d7e1828775d61131daec8d1b896a27002e478ce25069d72b4b968",
+  "container_id": "REPLACE_WITH_EXACT_ORIGINAL_CONTAINER_ID",
+  "image": "REPLACE_WITH_EXACT_ORIGINAL_SHA256_IMAGE_ID",
+  "gpu_uuids": {
+    "gpu0": "REPLACE_WITH_ORIGINAL_PHYSICAL_UUID",
+    "gpu1": "REPLACE_WITH_ORIGINAL_PHYSICAL_UUID"
+  },
+  "lock_identity": {
+    "gpu0": {"device": null, "inode": null, "mode": null, "uid": null, "gid": null},
+    "gpu1": {"device": null, "inode": null, "mode": null, "uid": null, "gid": null}
+  },
+  "reviewed_metadata_sha256": "REPLACE_WITH_DIGEST_OF_COMPLETE_REVIEWED_INSPECT_OBJECT"
+}

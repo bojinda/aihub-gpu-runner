@@ -13,13 +13,14 @@ def main():
                         "transition-scope", "dual-restore", "migrate-physical-locks",
                         "transition-wallpaper-workflow", "transition-wallpaper-conditioning",
                         "transition-wallpaper-on-demand",
-                        "authorize-recovery"))
+                        "authorize-recovery", "recover-reboot-contract"))
     parser.add_argument("--evidence-file")
     parser.add_argument("--job-id")
     parser.add_argument("--new-config")
     parser.add_argument("--rollback", action='store_true')
     parser.add_argument('--policy-file')
     parser.add_argument('--approval-ref')
+    parser.add_argument('--container-review-file')
     args = parser.parse_args()
     if args.action == 'migrate-physical-locks':
         if not args.new_config or not args.evidence_file or not args.job_id or args.rollback:
@@ -56,6 +57,23 @@ def main():
             runner.close()
         return
     _, targets, admission = admission_from_config(args.config)
+    if args.action == 'recover-reboot-contract':
+        if (not args.evidence_file or not args.container_review_file or not args.job_id or
+                args.new_config or args.rollback or args.policy_file or args.approval_ref):
+            parser.error('exact job, operator evidence and private container review required; no policy override')
+        from .config import configured_backends
+        from .reboot_contract import recover_reboot_contract
+        with open(args.evidence_file, 'rb') as stream:
+            evidence = strict_json(stream.read())
+        with open(args.container_review_file, 'rb') as stream:
+            reviewed = strict_json(stream.read())
+        if isinstance(reviewed, list) and len(reviewed) == 1:
+            reviewed = reviewed[0]
+        if not isinstance(evidence, dict) or evidence.get('job_id') != args.job_id:
+            parser.error('job ID must match the exact approval')
+        print(json.dumps(recover_reboot_contract(admission, targets, configured_backends(targets),
+                                                evidence, reviewed)))
+        return
     if args.action == 'authorize-recovery':
         if not args.policy_file or not args.approval_ref:
             parser.error('reviewed recovery policy file and deployment approval reference required')

@@ -352,12 +352,18 @@ class Admission:
                 for lock in reversed(locks):
                     lock.close()
                 raise
-    def _modify(self, owner, resources, phase=None, clear=False, detail=None):
+    def _modify(self, owner, resources, phase=None, clear=False, detail=None, before_clear=None):
         with self.mutex.held():
             state = self.snapshot()
             if any(state["owners"].get(r, {}).get("lease_id") != owner["lease_id"]
                    for r in resources):
                 raise RecoveryRequired("stale_lease")
+            if before_clear is not None:
+                receipt = before_clear()  # Bound Music proof, using the existing mutex.
+                receipts = state.setdefault('music_release_receipts', {})
+                if not clear or owner['lease_id'] in receipts:
+                    raise RecoveryRequired('music_release_receipt_already_exists')
+                receipts[owner['lease_id']] = receipt
             for resource in resources:
                 if clear:
                     del state["owners"][resource]
@@ -422,11 +428,13 @@ class Lease:
         self.resources, self.locks = resources, locks
     def mark(self, phase, detail=None):
         self.admission._modify(self.owner, self.resources, phase=phase, detail=detail)
-    def release(self, proof):
+    def release(self, proof, *, before_release=None, before_clear=None):
         if (proof.get("completion_verified") is not True or
                 proof.get("cleanup_verified") is not True):
             raise ValueError("unverified_release")
-        self.admission._modify(self.owner, self.resources, clear=True)
+        if before_release is not None:
+            before_release()  # External observations never hold the shared journal mutex.
+        self.admission._modify(self.owner, self.resources, clear=True, before_clear=before_clear)
     def close(self):
         for lock in reversed(self.locks):
             lock.close()
@@ -602,7 +610,7 @@ class Runner:
             lease.close()
     def _work(self, job_id, lease):
         from .backends import CleanupPending, Uncertain
-        guard, cleanup_stage = None, None
+        guard, cleanup_stage, music = None, None, None
         def cleanup_details(exc):
             if cleanup_stage is None:
                 return {}
@@ -647,21 +655,40 @@ class Runner:
                 guard.mark_phase('owned_unload')
             else:
                 cleanup_stage = None
-            proof = backend.cleanup(execution, cleanup_deadline)
+            from .music_cleanup import music_guard
+            music = music_guard(self.admission, target, lease.owner,
+                self.recovery.observer if self.recovery else None,
+                lambda **fields: self._update(job_id, **fields))
+            if music:
+                music.prepare(cleanup_deadline)
+                proof = backend.cleanup(execution, cleanup_deadline, music_guard=music)
+                proof = dict(proof, music_release_idle=music.verify(cleanup_deadline))
+            else:
+                proof = backend.cleanup(execution, cleanup_deadline)
             if guard:
                 proof = dict(proof, physical_ollama_idle=guard.verify(cleanup_deadline))
             if proof.get("completion_verified") is not True or proof.get("cleanup_verified") is not True:
                 raise CleanupPending("cleanup_not_verified")
             cleanup_stage = None
+            if music:
+                music.recheck(cleanup_deadline)
             result = {"value": execution.value, "media_type": execution.media_type,
                       "artifact_available": execution.artifact is not None}
             if execution.artifact is not None:
                 self.store.write_bytes("results/" + job_id + ".bin", execution.artifact)
             self.store.write("results/" + job_id + ".json", result)
+            if music:
+                music.recheck(cleanup_deadline)
             # Result publication and positive cleanup proof precede resource handoff.
             self._update(job_id, state=("failed" if execution.error_code else "success"),
                          error_code=execution.error_code, cleanup_verified=True, cleanup_proof=proof)
-            lease.release(proof)
+            if music:
+                music.recheck(cleanup_deadline, terminal=True)
+            if music:
+                lease.release(proof, before_release=lambda: music.observe_release(cleanup_deadline),
+                              before_clear=lambda: music.release_binding(cleanup_deadline))
+            else:
+                lease.release(proof)
         except CleanupPending as exc:
             if lease:
                 lease.mark("cleanup_pending")
@@ -705,6 +732,16 @@ class Runner:
                 lease.close()
     def result(self, job_id):
         job = self.status(job_id)
+        if job.get('music_cleanup_context'):
+            future = self.futures.get(job_id)
+            if ((future is not None and not future.done()) or any(o['job_id'] == job_id for o in
+                                                        self.admission.snapshot()['owners'].values())):
+                raise Conflict('music_result_ownership_not_released')
+            if job.get('cleanup_proof', {}).get('music_release_idle'):
+                from .recovery import digest
+                receipt = self.admission.snapshot().get('music_release_receipts', {}).get(job.get('lease_id'), {})
+                if receipt.get('proof_sha256') != digest(job['cleanup_proof']['music_release_idle']):
+                    raise Conflict('music_release_receipt_unverified')
         if job.get('wallpaper_lifecycle'):
             future = self.futures.get(job_id)
             if ((future is not None and not future.done()) or any(o['job_id'] == job_id for o in

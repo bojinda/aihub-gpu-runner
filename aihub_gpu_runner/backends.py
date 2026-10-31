@@ -377,22 +377,27 @@ class ComfyBackend:
                              {"prompt_id": prompt_id}, artifact=data, media_type=media_type)
         except Exception:
             return Execution({}, {"prompt_id": prompt_id}, error_code="artifact_retrieval_or_validation_failed")
-    def cleanup(self, execution, deadline):
+    def cleanup(self, execution, deadline, *, music_guard=None):
         if not self._calibrated():
             raise CleanupPending("cleanup_observer_not_calibrated")
         try:
             if not self._queue_empty(deadline):
                 raise CleanupPending("unexpected_work_before_cleanup")
+            if music_guard is not None:
+                music_guard.intent(deadline)
             # Temporary wallpaper A/B: retain executor caches while unloading models.
             self.transport.ack("POST", "/free",
                 {"unload_models": True, "free_memory": self.target.name != "wallpaper"},
                 timeout=remaining(deadline, CleanupPending))
+            if music_guard is not None:
+                music_guard.acknowledged(deadline)
             stable = 0
             while True:
                 remaining(deadline, CleanupPending)
-                idle = self._queue_empty(deadline)
+                idle = (music_guard.observe(deadline)["queue_empty"] if music_guard is not None
+                        else self._queue_empty(deadline))
                 used, ceilings = self._memory_sample()
-                if self.target.conditioning_idle_memory_mb is not None:
+                if self.target.conditioning_idle_memory_mb is not None or music_guard is not None:
                     remaining(deadline, CleanupPending)  # Never release on a late dual-GPU observation.
                 if any(type(value) not in (int, float) or not math.isfinite(value) or value < 0
                        for value in used.values()):

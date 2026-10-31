@@ -315,7 +315,14 @@ class RecoveryObserver:
                 observations[name] = {'api_unavailable': True}
         return observations
 
-    def gpu_sample(self, resources, deadline, executing=False, stopped=False):
+    def gpu_sample(self, resources, deadline, executing=False, stopped=False, *, music_context=None):
+        # Opt-in only for the bound post-ack Music guard. Default callers retain
+        # their original hard service-limit behavior. No exception is suppressed.
+        if music_context is not None and (tuple(resources) != ('gpu0',) or executing or not stopped):
+            raise RecoveryRequired('music_release_observation_scope_invalid')
+        pending = []
+        compute_births = {}
+        seen_compute = set()
         driver_health = self.driver_health(deadline)
         known = {}
         service_identities = {}
@@ -349,12 +356,23 @@ class RecoveryObserver:
             pid, memory = int(row[1]), float(row[2])
             if pid not in known or not math.isfinite(memory) or memory < 0:
                 raise RecoveryRequired('unexplained_gpu_process_or_memory')
+            if music_context is not None:
+                service = known[pid]
+                birth = process_birth(pid)
+                if ((resource, pid) in seen_compute or
+                        music_context['processes'].get(service, {}).get(str(pid)) != birth):
+                    raise RecoveryRequired('music_release_unknown_or_reused_compute_process')
+                seen_compute.add((resource, pid))
+                compute_births[str(pid)] = birth
             usage[known[pid]][resource] += memory
         for service, values in usage.items():
             if executing and service == 'wallpaper':
                 continue
             if any(v > self.p['services'][service]['idle_memory_mb'][r] for r, v in values.items()):
-                raise RecoveryRequired('service_exceeds_calibrated_idle_baseline_' + service)
+                if music_context is not None and service == 'music':
+                    pending.append('music_memory_settling')
+                else:
+                    raise RecoveryRequired('service_exceeds_calibrated_idle_baseline_' + service)
         samples = {}
         for r in resources:
             rows = list(csv.reader(io.StringIO(self.command([
@@ -373,12 +391,28 @@ class RecoveryObserver:
             ceiling = self.p['stopped_idle_memory_mb'] if stopped else self.p['idle_memory_mb']
             if not executing and (values[0] > ceiling[r] or
                                    values[1] > self.p['idle_utilization_pct']):
-                raise CleanupPending('gpu_not_at_calibrated_idle_' + r)
+                if music_context is not None:
+                    pending.append('gpu0_memory_or_utilization_settling')
+                else:
+                    raise CleanupPending('gpu_not_at_calibrated_idle_' + r)
             samples[r] = {'uuid': self.p['gpu_uuids'][r], 'memory_mb': values[0],
                           'utilization_pct': values[1], 'temperature_c': values[2],
                           'uncorrected_ecc': ecc, 'retired_pending': retired}
+        if music_context is not None:
+            for service in ('music', 'wallpaper'):
+                if (service_identities[service] != music_context['identities'][service] or
+                        self.container(service, deadline) != service_identities[service]):
+                    raise RecoveryRequired('music_release_generation_changed')
+            if self.processes(service_identities['music'], deadline) != music_context['processes']['music']:
+                raise RecoveryRequired('music_release_process_birth_changed')
+            for pid, birth in compute_births.items():
+                if process_birth(pid) != birth:
+                    raise RecoveryRequired('music_release_process_birth_changed')
+            remaining(deadline, CleanupPending)
         return {'gpus': samples, 'service_memory_mb': usage, 'driver_health': driver_health,
-                'service_identities': service_identities}
+                'service_identities': service_identities,
+                **({'music_settling': pending, 'compute_births': compute_births}
+                   if music_context is not None else {})}
 
     def driver_health(self, deadline):
         # Require readable, current-boot kernel diagnostics; an empty/inaccessible
@@ -539,6 +573,9 @@ class RecoveryManager:
         job = self.store.job(job_id)
         fields = {'boot_id': lease.owner.get('boot_id'),
                   'execution_deadline': now() + self.targets[job['target']].execution_timeout}
+        if job['target'] == 'music' and 'stopped_idle_memory_mb' in self.p:
+            from .music_cleanup import capture_execution
+            fields['music_execution'] = capture_execution(self.observer, time.monotonic() + self.p['observation_timeout'])
         if job['target'] == 'wallpaper':
             ident = self.observer.container('wallpaper', time.monotonic() + self.p['observation_timeout'])
             if not ident['running'] or ident['pid'] <= 0:

@@ -1,6 +1,6 @@
 """Exact display acknowledgment inventory; no journal or GPU effects."""
 import copy
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 import hashlib
 import tempfile
 from types import SimpleNamespace
@@ -59,7 +59,11 @@ class IncidentTests(unittest.TestCase):
     def test_authenticated_endpoint_has_no_writes_locks_or_backend_calls(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = AtomicStore(tmp)
-            store.write('ownership.json', {'automatic_recovery': {'a': wall()}})
+            entry = wall()
+            # This endpoint uses real time; keep its fixture inside the rolling
+            # window instead of expiring seven days after the historical NOW.
+            entry['created_at'] = datetime.now(timezone.utc).isoformat()
+            store.write('ownership.json', {'automatic_recovery': {'a': entry}})
             runner = SimpleNamespace(store=store, submit=Mock(), recovery=Mock())
             app = Application(runner, 'synthetic-token-' + 'a' * 32)
             before = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in store.root.rglob('*') if p.is_file()}

@@ -8,7 +8,7 @@ import time
 from urllib.parse import urlencode, urlsplit
 import urllib.request
 from uuid import UUID
-from .core import encode, strict_json
+from .core import RecoveryRequired, encode, strict_json
 
 class Uncertain(Exception):
     def __init__(self, code):
@@ -415,6 +415,12 @@ class ComfyBackend:
                 time.sleep(min(self.poll_interval, remaining(deadline, CleanupPending)))
         except CleanupPending:
             raise
+        except RecoveryRequired as exc:
+            # Guarded Music only: fixed internal reasons survive this boundary;
+            # arbitrary exception text and all uncertain effects stay generic.
+            from .music_cleanup import failure_code
+            code = failure_code(exc) if music_guard is not None else None
+            raise CleanupPending(code or "comfy_cleanup_uncertain") from None
         except Exception:
             raise CleanupPending("comfy_cleanup_uncertain") from None
 

@@ -13,6 +13,116 @@ from .core import FINAL, RecoveryRequired, timestamp
 from .recovery import binding, digest, process_birth, valid_boot
 
 
+# Exact literals only. Never format arbitrary exception text into public state.
+_HARD_FAILURES = frozenset('''
+music_release_scope_or_policy_invalid music_release_owner_boot_or_policy_changed
+music_release_job_binding_changed music_release_context_changed
+music_cleanup_intent_exists_no_replay music_release_execution_changed
+music_release_wallpaper_not_stopped music_release_invalid_compute_capture
+music_release_prompt_missing music_release_generation_changed
+music_release_process_birth_changed music_cleanup_ack_without_unique_intent
+music_release_deadline_changed music_release_free_ack_unverified
+invalid_expected_queue_music unexplained_backend_activity_music
+backend_readiness_unverified_music music_release_proof_missing_or_changed
+music_release_no_longer_idle music_release_service_not_running
+music_release_observation_scope_invalid music_release_unknown_or_reused_compute_process
+service_process_identity_unverified ambiguous_service_process_identity
+unexplained_gpu_process_or_memory gpu_process_observation_invalid
+container_process_disappeared container_process_identity_unverified
+container_process_stat_invalid container_main_process_unverified
+container_identity_or_supervision_changed container_name_identity_changed
+container_inspect_invalid container_mounts_invalid
+container_mount_destination_invalid container_mount_destinations_ambiguous
+physical_gpu_identity_unverified_gpu0 invalid_gpu_health_gpu0
+gpu_health_requires_operator_gpu0 wallpaper_not_stopped_for_idle_cleanup
+service_exceeds_calibrated_idle_baseline_ollama
+service_exceeds_calibrated_idle_baseline_wallpaper
+kernel_gpu_driver_fault_requires_operator kernel_health_log_requires_operator
+kernel_health_boot_unverified kernel_health_log_boot_unverified
+kernel_health_log_invalid kernel_health_log_unavailable
+physical_lock_identity_changed physical_lock_identity_changed_during_acquisition
+physical_lock_not_regular_file
+'''.split())
+
+
+def failure_code(exc):
+    reason = exc.args[0] if isinstance(exc, RecoveryRequired) and len(exc.args) == 1 else None
+    return reason if type(reason) is str and reason in _HARD_FAILURES else None
+
+
+def result_released(job, state):
+    """Read-only recognition of existing release records, never recovery.
+
+    Local recover commits its flat audit BEFORE the CLI's terminal-failed write.
+    Thus recovery can release a failed result, never substitute for a success
+    receipt. Automatic recovery has a different, incident-bound audit schema.
+    """
+    try:
+        context = job['music_cleanup_context']
+        owner = {k: job[j] for k, j in (('job_id','request_id'), ('request_hash','request_hash'),
+                 ('lease_id','lease_id'), ('target','target'), ('boot_id','boot_id'))}
+        if (owner['target'] != 'music' or not valid_boot(owner['boot_id']) or
+                any(not isinstance(v, str) or not v for v in owner.values()) or
+                job['resources'] != ['gpu0'] or context['owner'] != owner or
+                context['resources'] != ['gpu0']):
+            return False
+        policy_id, uuids = context['policy_id'], context['physical_gpu_uuids']
+        proof = job.get('cleanup_proof', {}).get('music_release_idle')
+        receipt = state.get('music_release_receipts', {}).get(owner['lease_id'], {})
+        if (proof and job.get('music_release_idle') == proof and
+                proof.get('schema') == 1 and proof.get('cleanup_verified') is True and
+                proof.get('policy') == 'music_release_idle' and
+                proof['owner'] == owner and proof['resources'] == ['gpu0'] and
+                proof['policy_id'] == policy_id and proof['context_sha256'] == digest(context) and
+                receipt.get('schema') == 1 and receipt.get('owner') == owner and
+                receipt.get('resources') == ['gpu0'] and receipt.get('policy_id') == policy_id and
+                receipt.get('proof_sha256') == digest(proof) and
+                receipt.get('released_at') and
+                receipt.get('final_observation', {}).get('context_sha256') == digest(context)):
+            return True
+        # Missing owner / ready:true / terminal success alone is never proof.
+        if job['state'] != 'failed' or not job.get('error_code'):
+            return False
+        for audit in state.get('recoveries', []):
+            if not isinstance(audit, dict) or not audit.get('recovered_at'):
+                continue
+            if audit.get('provenance') == 'runner_observations':
+                identity = dict(owner, resources=['gpu0'], physical_gpu_uuids=uuids, policy_id=policy_id)
+                incident_id = digest(identity)
+                incident = state.get('automatic_recovery', {}).get(incident_id, {})
+                recovery_proof = audit.get('proof', {})
+                readiness = recovery_proof.get('readiness', recovery_proof)
+                if (audit.get('identity') == identity and audit.get('incident_id') == incident_id and
+                        job.get('recovery_incident') == incident_id and job.get('recovery_status') == 'verified' and
+                        incident.get('id') == incident_id and incident.get('identity') == identity and
+                        incident.get('kind') == 'previous_boot' and incident.get('phase') == 'released' and
+                        incident.get('released_at') and valid_boot(audit.get('observed_boot')) and
+                        audit['observed_boot'] != owner['boot_id'] and
+                        incident.get('observed_boot') == audit['observed_boot'] and
+                        recovery_proof == incident.get('proof') == job.get('recovery_proof') and
+                        recovery_proof.get('cleanup_verified') is True and
+                        recovery_proof.get('verified_boot') == audit['observed_boot'] and
+                        readiness.get('cleanup_verified') is True and
+                        (readiness.get('idle_ready') is True or readiness.get('backend_ready') is True)):
+                    return True
+            # Admission.recover stores the supplied flat local attestation; it
+            # does not add runner provenance, incident, boot or resource fields.
+            elif (job['error_code'] == 'operator_recovered_no_automatic_resubmission' and
+                    audit.get('provenance') in (None, 'local_operator_attestation') and
+                    'identity' not in audit and 'incident_id' not in audit and
+                    all(audit.get(k) == owner[k] for k in ('job_id','request_hash','lease_id','target')) and
+                    isinstance(audit.get('approval_ref'), str) and audit['approval_ref'].strip() and
+                    all(audit.get(k) is True for k in ('operator_approved_backend_recovery',
+                        'backend_quiescent','cleanup_verified')) and
+                    all(k not in audit or audit[k] == v for k,v in
+                        (('boot_id',owner['boot_id']), ('resources',['gpu0']),
+                         ('policy_id',policy_id), ('physical_gpu_uuids',uuids)))):
+                return True
+        return False
+    except (KeyError, TypeError, AttributeError, ValueError):
+        return False  # Malformed evidence is never permission to publish.
+
+
 def capture_execution(observer, deadline):
     identity = observer.container('music', deadline)
     if not identity['running'] or identity['pid'] <= 0:

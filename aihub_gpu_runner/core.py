@@ -706,13 +706,15 @@ class Runner:
             # clearing write reports failure after effect. If the old owner
             # remains, retain cleanup_pending instead of pretending handoff.
             current = self.store.job(job_id)
+            from .music_cleanup import failure_code
+            music_code = failure_code(exc) if music is not None else None
             if current["state"] in FINAL and current.get("cleanup_verified") is True:
                 owners = self.admission.snapshot()["owners"]
                 still_owned = lease and any(owners.get(r, {}).get("lease_id") ==
                                              lease.owner["lease_id"] for r in lease.resources)
                 if still_owned:
                     self._update(job_id, state="cleanup_pending",
-                                 error_code="ownership_release_unconfirmed")
+                                 error_code=music_code or "ownership_release_unconfirmed")
                 else:
                     self._update(job_id, publication_warning="ownership_release_sync_unconfirmed")
                 return
@@ -723,7 +725,8 @@ class Runner:
                     pass
             detail = cleanup_details(exc)
             self._update(job_id, state="reconciling",
-                         error_code=detail['ollama_cleanup_failure']['reason'] if detail else "supervision_or_storage_failure",
+                         error_code=(detail['ollama_cleanup_failure']['reason'] if detail else
+                                     music_code or "supervision_or_storage_failure"),
                          **detail,
                          **({'lifecycle_operator_error': str(exc)} if isinstance(exc, RecoveryRequired) and
                             self.store.job(job_id).get('wallpaper_lifecycle') else {}))
@@ -733,15 +736,15 @@ class Runner:
     def result(self, job_id):
         job = self.status(job_id)
         if job.get('music_cleanup_context'):
+            state = self.admission.snapshot()
             future = self.futures.get(job_id)
             if ((future is not None and not future.done()) or any(o['job_id'] == job_id for o in
-                                                        self.admission.snapshot()['owners'].values())):
+                                                        state['owners'].values()) or any(
+                    o.get('lease_id') == job.get('lease_id') for o in state['owners'].values())):
                 raise Conflict('music_result_ownership_not_released')
-            if job.get('cleanup_proof', {}).get('music_release_idle'):
-                from .recovery import digest
-                receipt = self.admission.snapshot().get('music_release_receipts', {}).get(job.get('lease_id'), {})
-                if receipt.get('proof_sha256') != digest(job['cleanup_proof']['music_release_idle']):
-                    raise Conflict('music_release_receipt_unverified')
+            from .music_cleanup import result_released
+            if not result_released(job, state):
+                raise Conflict('music_release_receipt_unverified')
         if job.get('wallpaper_lifecycle'):
             future = self.futures.get(job_id)
             if ((future is not None and not future.done()) or any(o['job_id'] == job_id for o in

@@ -413,6 +413,21 @@ class DualTests(unittest.TestCase):
             AIHUB_GPU_RUNNER_PYTHON=sys.executable, MEETING_SUMMARY_PYTHON=sys.executable,
             MEETING_FAKE_OLLAMA_LOG=str(log), DUAL_OFFLINE_SWITCH_LOG=str(switches),
             MEETING_TEST_GPU0=str(self.root / 'gpu0.lock'), MEETING_TEST_GPU1=str(self.root / 'gpu1.lock'))
+        # Install the explicit disposable child transport. The original external
+        # harness supplied this via sitecustomize; a repository path alone did
+        # not prohibit network or replace the synthetic Docker executable.
+        import importlib.util
+        meeting_root = Path(os.environ['MEETING_PIPELINE_TEST_ROOT'])
+        spec = importlib.util.spec_from_file_location('dual_transport_fixture', meeting_root / 'tests/runner_transport_fixture.py')
+        transport_fixture = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(transport_fixture)
+        synthetic_config = self.root / 'runner.synthetic.json'
+        synthetic_config.write_bytes(self.new.read_bytes())
+        env['AIHUB_GPU_RUNNER_CONFIG'] = str(synthetic_config)
+        env['PYTHONPATH'] = str(Path(__file__).resolve().parents[1])
+        transport_fixture.configure_transport(self.root, env)
+        guard = self.root / 'transport-guard/sitecustomize.py'
+        guard.write_text(guard.read_text() + '\nfrom tests.dual_launcher_fixture import install\ninstall()\n')
         command = ['bash', str(Path(os.environ['MEETING_PIPELINE_TEST_ROOT']) / 'bin/summarize-existing-meeting.sh'),
                    str(transcript), '--dual-gpu-target', 'meeting-dual', '--reduce-num-ctx', '196608', '--keep-recap']
         outcome = subprocess.run(command, env=env, capture_output=True, text=True, timeout=10)

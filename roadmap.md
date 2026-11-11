@@ -472,3 +472,78 @@ production helper configuration must never be repointed to make the fixture work
 Only checkpoint documentation advances here. Preserve the coherent implementation,
 existing long-term requirements and original private evidence. Each remaining stop
 requires review; authorization for one checkpoint does not authorize its successor.
+
+
+## System-wide E-stop amendment
+
+# AI-HUB — System-wide E-stop Roadmap Addendum
+
+**Revision:** E0, 2026-11-11 (Toronto).  **Status:** design/implementation checkpoint, NOT deployed or production-authorized.  **Canonical merge target:** `bojinda/aihub-gpu-runner/roadmap.md` on the existing local roadmap branch; merge this as a narrowly scoped amendment rather than replacing the later canonical roadmap with an older copy.
+
+## Operator decision (supersedes previous emergency-release requirements)
+
+E-stop is an **administrator-triggered, global force-relinquishment of the runner's coordination ownership of GPU0 and GPU1**. It applies to whatever is currently using either GPU, including ordinary Ollama, on-demand Wallpaper/Comfy, Music/Comfy, WhisperX host stages, routine meeting stages, and paired/dual-GPU meeting sessions. It applies during waiting, running, cleanup_pending, reconciling, and other retained conditions; it does not require historical process identity, physical idleness, empty VRAM/model residency, successful cleanup, or a recognised error class.
+
+E-stop **does not stop, pause, restart, unload, signal, re-execute, or reset** any GPU workload or device. The operator explicitly accepts that old work may continue and new work may overlap it. The action releases the **runner's authority/leases**, not hardware memory or an executing process. Workload termination is deferred to a later, separately designed feature.
+
+**Required user-visible result:** E-stop invalidates all current GPU lease bindings and returns current runner admission to a logically free generation without waiting for GPU work/cleanup. A historical active process that still holds the old generation's OS `flock` must not make the **new generation** falsely appear blocked as a retained logical lease. New work may still independently fail a backend's ordinary execution/preflight limits; report that honestly instead of reporting hardware as idle. Do not label physical GPU work as stopped.
+
+## Technical reality and boundary
+
+- Linux `flock` is associated with the lock-holder's open file description. A separate administrator request cannot simply `LOCK_UN` an arbitrary live worker's descriptor. Editing `ownership.json` alone will **not** make the old file's `flock` available while that process holds it.
+- The existing `Admission.try_acquire()` requires BOTH `state.owners` free and successful nonblocking `NativeLock.acquire()` of the currently configured physical lock paths. Independently launched `HostStage` jobs take those same locks. Therefore, **an E-stop implementation that only clears owners is incomplete**, even if its UI says success.
+- To meet the operator's explicit semantics without stopping work, use a correctly designed, **crash-safe admission generation / lock namespace transition**, or demonstrate an equally sound mechanism that gives new cooperative work new lock authority while old holders can continue. Preserve all old lock files/inodes as evidence. Do **not** unlink or replace old held locks as an undocumented workaround. Avoid a second scheduler or a separate shadow registry.
+- The old/legacy launchers and client packages must be inventoried. New normal admissions (runner workers and host/meeting stage clients) must use the current generation. Older binaries that cannot understand the new generation must **fail closed** and must not claim old generations for new work. If the active host SDK requires a compatible update, include that in the candidate and deployment plan; do not pretend that the earlier three-component manifest already covers this change.
+
+## E-stop contract (one global action first)
+
+1. **Authority:** authenticated active HA administrator, separate operate credential, direct user confirmation with clear warning that GPU work may continue and overlap; dedicated E-stop operation/ticket, not a fabricated existing `Recover` or Wallpaper emergency proof. No anonymous, automation, client or GET-triggered mutation. A fixed backend action may be added through the HA bridge and Media proxy allowlists; never expose arbitrary paths/commands.
+2. **Exact invocation:** fresh read-only status/check binds current admission generation, boot ID, scope, policy, both original current resource lock identities, all current owners (possibly none), each job/request/hash/lease/resources, and action. The token is short-lived and one-shot. **Global E-stop clears every currently held resource lease**, including both resources of a paired owner; no partial dual-lease remainder.
+3. **Before commit:** acquire bounded coordination mutexes, validate the exact ticket against current state, persist a durable operation/intent and per-lease disposition, and prepare any required *new generation* lock paths and identities. One current generation is authoritative. No backend, GPU or Docker reads/writes are required to establish administrative eligibility. A busy or unavailable journal is reported truthfully; no claim of hard real-time latency.
+4. **Commit:** atomically switch the authoritative journal to the new admission generation and revoke/retire every old lease. Persist an append-only audit/receipt containing old owners, new generation, action, confirmed actor, signed binding, no-replay status, and the fact that **physical execution was NOT inspected or stopped**. Follow crash-consistent ordering: precreate/fsync new lock identities, then commit one authoritative generation switch; interrupted preparations are not authority.
+5. **After commit:** API reporting and scheduling use the new generation; old owner's job is failed/administratively abandoned for runner authority, with its original incident, outputs, requests and history retained. **A revoked old job must never become an accepted success or a new owner through late worker writes.** Use an immutable revocation ledger or equivalent authoritative overlay. A stale worker's `_modify`, `Lease.release`, journal write, host `generate`, result publication, or handoff must not mutate fresh ownership/terminal disposition. Old worker processes are left running (at most their later cooperative writes fail). Preserve physical lock files from each generation.
+6. **Idempotence:** one administrator call/one audit for the ticket. After lost HTTP response, verify the exact operation only; no automatic resubmit or using an old success as evidence. Fresh deliberate E-stop after a completed/verified prior action may be separately authorised. Calling E-stop with no owners must return a truthful no-op (no spurious change of generation without a reason).
+7. **Status:** display `runner ownership: FREE / revoked leases: N / current generation: …` separately from `GPU physical state: NOT ASSERTED`. If new admission fails due to a *distinct* readiness/VRAM/backend limitation, report that independently. Do not claim the OS kernel unlocked an old FD.
+
+## Important integration points
+
+- **Runner:** `aihub_gpu_runner/core.py` (`Admission`, `NativeLock`, `Lease`, `Runner._work`, `_schedule`, `result`, `status`), recovery/maintenance startup and readback, per-generation lock selection, stale-worker precedence.
+- **Host work:** `aihub_gpu_runner/host_stage.py`, `HostOllamaClient`, meeting/lesson direct host SDK and guarded launchers; prove in-flight dual, gpu0 and gpu1 stage paths cannot overwrite new generation. Older installed versions must fail closed.
+- **HA path:** `aihub_gpu_runner/integrated_runtime.py`, `dashboard-generator/app/recovery_routes.py`, `home_assistant/custom_components/aihub_recovery/bridge.py`, `home_assistant/www/aihub-recovery-card.js`. Add one explicit E-stop control and exact Verify; keep existing Recover and Wallpaper-specific emergency behavior unchanged unless independently justified and clearly migrated.
+- **Other clients:** Music and Wallpaper requests remain normally admitted by runner; do not change Comfy inference, model, 475-MiB Music threshold, five-second budget, ToDo four-file cache/identity records, existing schedules, or Aurora Gateway.
+
+## Acceptance matrix — offline first
+
+- Running Ollama holds GPU1 physical `flock`: E-stop succeeds, old process persists, old lock remains held, **new generation GPU1 admission succeeds under a disposable test**, late old writes cannot affect new owner.
+- Running Music holds GPU0: same test, including retained Music cleanup policy unchanged.
+- Wallpaper paired GPU0+GPU1: atomically revoke both; no partial stale paired owner, no Docker stop; both new-generation resources can be admitted.
+- Foreground meeting/WhisperX `HostStage` holds GPU0, routine meeting GPU1, dual meeting holds both: independent host subprocess remains alive and original FD remains held; new-generation admission works; host-side late updates fail closed/are masked by authoritative revocation.
+- Jobs in waiting, running, cleanup_pending, reconciling, previously completed retained, and already free: correct outcomes; no duplicate work; no automatic backend execution from E-stop.
+- Concurrent new admission during E-stop, stale ticket/binding, multiple tabs, lost response, duplicate POST, DB/IO failure before/after journal switch, host restart, old runner restart, and backend still busy: no false fresh ownership, no split generations, exactly one audit, Verify-only ambiguity.
+- File-system crash windows between new file creation, directory fsync and authoritative commit; old and current lock inode identities; no unlink/rename of original held locks; operator-visible blocked state if state is uncertain.
+- Actual installed Linux `flock` tests in separate processes. Synthetic mocks alone are insufficient for the active-held-lock contract. No live GPU workload required for qualification.
+
+## Staged checkpoints — stop after each
+
+**E0 — Contract and feasibility review.** Trace current and legacy host launchers and available journal/file-lock mechanics. Propose exact persistent schema, generation switch, compatibility/read-path, and crash proof. If a truly immediate usable lock generation cannot be obtained without an unapproved major migration, **STOP and report the smallest required change**; do not substitute logical-only release or hide the limitation.
+
+**E1 — Offline candidate.** Implement E-stop only in source branches, using the approved E0 design. Use disposable processes and state directories; no production writes. Include deterministic tests and exact build hashes. Review here before deployment.
+
+**E2 — Attended in-place installation.** Only after E1 and fresh state/provenance review, deploy exact minimal components. Running CPU runner and host SDK compatibility need qualification. No automatic estop or background force-release. Stop after installed readback and before any production E-stop.
+
+**E3 — Operator confirms E-stop.** Fresh exact HA check/confirmation for current GPU0+GPU1 leases, one commit, Verify on uncertain response. Inspect authoritative journal/old physical locks/new generation and new admission without inferring physical idle. Restore recorded schedules, observe ordinary jobs.
+
+**E4 — Stability.** Five eligible production days of ordinary Music/Wallpaper/ToDo/meeting work without coordination incidents. Separately evaluate later workload-stop behaviour. Do not let emergency override mask recurring ordinary cleanup failures in stability accounting.
+
+## Non-goals / risk acceptance
+
+- The operator **accepts unverified active GPU overlap** after explicit E-stop; risks include out-of-memory errors, failed jobs and competing compute. This is not automatic policy or a claim that continuing foreign work is physically harmless.
+- No automatic physical stop, kill, driver reset, container restart, VM provisioning, manual cleanup proof, reconstructed historical PID, or blind journal deletion.
+- No broad evidence recapture, wholesale refactor, public forensic dump, or history rewrite.
+
+
+### E0 implementation ledger
+
+The final operator E-stop decision supersedes the earlier idle-only/helper/producer-exclusion prerequisites ONLY for this new administrative action. It does not silently change ordinary Recover or enable automatic authority. The four reliability candidate commits stay frozen.
+
+Current E0: OS-lock generation feasibility demonstrated offline; full-system design remains OPEN for revocation read/write precedence, executor handover and generation-aware host/helper/Music compatibility. See [E0 design and matrix](docs/estop-e0-design.md). The experiment is not an enabled E-stop and no runtime implementation has changed. Stop for the E0 review required above before calling the design sound or proceeding to E1. E2/E3 remain unauthorized; production readiness stays HOLD.

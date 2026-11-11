@@ -159,4 +159,4 @@ Source hashes describe the reconstruction baseline, before explicitly reviewed b
 
 The CPU runner, host SDK, fixed privileged helper and isolated Comfy plugin are separate source roots. `components/client-sdk` is the independently preserved cooperative SDK used by Media/WebAuth. Only CPU runner, Media reconciliation and HA card are candidate deployment targets. Helper, host SDK, plugin and client SDK wheels are compatibility artifacts; do not install them as a bundle. The fixed helper launcher still pins its existing deployed wheel. The restored HA RFC1918 allowlist is intentional network policy, not a host-specific placeholder.
 
-Canonical plan: [runner roadmap](https://github.com/bojinda/aihub-gpu-runner/blob/codex/production-reliability-source-20261111/roadmap.md).
+Canonical plan: [runner roadmap](https://github.com/bojinda/aihub-gpu-runner/blob/codex/production-reliability-candidate-20261111/roadmap.md).

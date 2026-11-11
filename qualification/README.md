@@ -55,6 +55,42 @@ checkout; the Media subprocess's `PYTHONPATH` includes only the Media app source
 so it cannot silently import the CPU runner's SDK. Import origins remain part of
 the private result record.
 
+Build artifacts from an exact committed source revision, using the ordinary
+`tools/build_components.py` separately for `runner`, `host-sdk`,
+`privileged-helper`, `comfy-plugin` and `client-sdk`. Install each SDK variant
+into its own disposable environment with `pip install --no-index --no-deps
+/absolute/path/to/the/component.whl`. Do not install the CPU runner wheel into
+Media or the Comfy plugin environment as a substitute for its separate SDK.
+`media-requirements.lock` pins the standalone Media environment; its SDK is a
+separately installed committed artifact. The HA environment uses
+`ha-media-requirements.lock`; the unchanged Music Flask tests also use its
+pinned Flask dependency. Host tests use the meeting repository's pinned
+requirements and the separately installed host SDK.
+
+After installing the CPU wheel into a separate Python 3.12 environment, run the
+complete runner tests against its installed package with:
+
+```sh
+export MEETING_PIPELINE_TEST_ROOT=/absolute/path/to/meeting-pipeline
+export AIHUB_QUALIFICATION_RESULTS=/absolute/path/to/private-results
+/absolute/path/to/runner-python3.12/bin/python -I -B qualification/run_installed_suite.py
+```
+
+The runner suite records executed cases separately from unique method
+definitions inherited by multiple test classes. The historical meeting launcher
+test installs an explicit temporary network-denying transport and synthetic
+switch fixture; no environment-provided hidden `sitecustomize` is required.
+This tests real local admission and physical file-lock exclusion, not GPU
+telemetry or Docker mode changes.
+
+Import/hash verification of the fixed helper wheel on Python 3.12 and its
+argument refusal are distinct from privileged configured-helper execution.
+Tests using helper functions or a disposable CPU Comfy process do not prove a
+root-owned `/etc/aihub/recovery-helper.json` plus real container-init capture.
+If the test host has no disposable Docker/container namespace facility, record
+that configured privileged path as an explicit qualification gap; do not
+silently substitute mocked metadata or modify the host's sudoers.
+
 `media-import-origins.json`, `ha-import-origin.json`, local server logs and the
 sanitized fixture workflow transcript are written only beneath the explicitly
 selected results directory. Keep that directory outside a public checkout.

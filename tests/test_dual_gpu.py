@@ -427,7 +427,10 @@ class DualTests(unittest.TestCase):
         env['PYTHONPATH'] = str(Path(__file__).resolve().parents[1])
         transport_fixture.configure_transport(self.root, env)
         guard = self.root / 'transport-guard/sitecustomize.py'
-        guard.write_text(guard.read_text() + '\nfrom tests.dual_launcher_fixture import install\ninstall()\n')
+        import aihub_gpu_runner
+        package_parent = str(Path(aihub_gpu_runner.__file__).resolve().parents[1])
+        guard.write_text('import sys\nsys.path.insert(0, ' + repr(package_parent) + ')\n' +
+                         guard.read_text() + '\nfrom tests.dual_launcher_fixture import install\ninstall()\n')
         command = ['bash', str(Path(os.environ['MEETING_PIPELINE_TEST_ROOT']) / 'bin/summarize-existing-meeting.sh'),
                    str(transcript), '--dual-gpu-target', 'meeting-dual', '--reduce-num-ctx', '196608', '--keep-recap']
         outcome = subprocess.run(command, env=env, capture_output=True, text=True, timeout=10)

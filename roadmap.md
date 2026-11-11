@@ -3,7 +3,7 @@
 **Revision:** 1.0 — November 11, 2026, America/Toronto  
 **Owner:** Operator  
 **Canonical destination:** `aihub-gpu-runner/roadmap.md` after source reconciliation  
-**Status:** Independent review completed for the critical paths described below; proposed implementation plan. No production deployment, recovery, history rewrite or automatic-authority expansion is authorized by this document alone.
+**Status:** Offline implementation candidate; D1–D4 reviewed. G0/G1/G2/G4 pass within the documented qualification envelope; G3 is partial and G5 remains on hold. See [qualification](docs/qualification.md). No production deployment, recovery, history rewrite or automatic-authority expansion is authorized by this document alone.
 
 ## 0. Decision and definition of success
 
@@ -356,12 +356,12 @@ Do not claim closure when only a code count, unit-test count, UI label, one reco
 
 | Gate | Status | Required evidence |
 |---|---|---|
-| G0 Canonical source/private evidence | Not implemented | Clean source branches, semantic restoration map, package/import provenance |
-| G1 Contracts and failing baseline scenarios | Partially established by this review | D1–D4 frozen, full baseline suite and remaining cases |
-| G2 Cleanup observation/release correction | Not implemented | Complete turnover/negative/final-check coverage |
-| G3 Exact usable recovery | Not implemented for current missing-observation class | Named Check results, exact fresh-proof authority and uncertain verification |
-| G4 HA/Media liveness corrections | Defects independently reproduced; no patch applied | Desired-outcome regressions and framework integration |
-| G5 Coherent release review | Not started | Clean artifacts and installed-path qualification |
+| G0 Canonical source/private evidence | PASS, offline source/build scope | Clean ancestry, original-to-canonical private map, separate committed builds and verified installed imports; no audit ancestry |
+| G1 Contracts and failing baseline scenarios | PASS | D1–D4 frozen and independently reviewed; baseline reproductions separated from desired-outcome tests; proposed authority explicitly disabled |
+| G2 Cleanup observation/release correction | PASS, qualified CPU/synthetic observation envelope | Correlated observation, real process/parser negatives, common cleanup budget and final boundary tests; no historical PID authentication or live acceptance |
+| G3 Exact usable recovery | PARTIAL / authority decision remains | Existing supported class qualifies; exact unsupported class returns meaningful refusal. Missing historical identity is not newly authorized for retirement |
+| G4 HA/Media liveness corrections | PASS, Linux deployment envelope | Settled-history progress and tamper/current-owner refusal; actual browser/HA/Media/native one-call uncertain Verify; Windows large-history latency limit recorded |
+| G5 Coherent release review | HOLD | Source accepted by authority review; committed artifacts and installed integrations qualify. New historical-evidence authority and configured privileged helper/container qualification remain unresolved |
 | G6 Attended restoration | Not authorized/executed by this roadmap | Fresh state, exact operator approval, audit/release/restoration proof |
 | G7 Unattended acceptance | Not established | Five eligible production days and workload ledger |
 

@@ -443,3 +443,32 @@ Do not design, implement, gather website integration requirements, request crede
 # Candidate implementation ledger
 
 See [reliability contracts](docs/reliability-contracts.md), [finding matrix](docs/reliability-candidate.md) and [component provenance](docs/source-reconstruction.md). Offline qualification is separate from installation, exact recovery authorization and five eligible production days. Unknown-history manual retirement is disabled; no new automatic authority is included.
+
+
+## Remaining qualification checkpoints — explicit review stops
+
+The four published implementation commits are frozen. Offline implementation and
+its documented CPU/synthetic tests are complete for the accepted source scope;
+this does not complete real-environment qualification or production acceptance.
+G0/G1/G2/G4 retain their qualified offline verdicts. G3 remains partial for the
+unsupported historical-observation class; G5 remains HOLD. No test count closes
+either gate, and the roadmap is not complete.
+
+| Checkpoint | Required evidence | Stop for review before |
+|---|---|---|
+| H1a: isolated host/procedure approval | Explicit disposable Docker-capable Linux host, CPU-only image digest, no production state/devices/mounts, exact original launcher/wheel and synthetic root-only configuration, bounded case matrix | Creating or operating the container fixture on that host |
+| H1b: configured helper execution | Actual no-argument launcher at fixed paths, real container-init/cgroup/namespace/birth, valid capture/recovery-capture/graceful perform and wrong-generation/binding/action refusals, exact effect counts and interruption evidence | Advancing to authority or deployment decisions; unsupported host isolation returns NOT EXECUTED |
+| H2: manual contract decision | Existing disabled proposal plus a concrete reviewed exclusion of cooperative and direct/unmanaged producers throughout commit, and explicit treatment of missing historical identity | Implementing or enabling new authority; no coarse error allowlist substitution |
+| H3: coherent candidate release review | H1 evidence, H2 decision, exact immutable artifact/settings compatibility, retained-state handover/abort plan; any necessary code revision requires a newly reviewed successor rather than edits to frozen commits | Issuing an attended production GO |
+| H4: exact attended deployment/recovery approval | Fresh current binding/exclusion checks, recorded original ingress states, exact HA effect/operation, Verify-only uncertainty, rollback boundaries | Any production mutation; recovery is a separately explicit HA confirmation |
+| H5: ordinary scheduled acceptance | Actual Wallpaper/ToDo/cache and other required workload artifacts, durable releases and five eligible production days | Declaring unattended production reliability accepted |
+
+H1 is currently NOT EXECUTED: the available development environment has no local
+Docker engine/client, and no remote fixture host is authorized. Prior helper import
+and argument-refusal checks remain valid limited evidence; direct function tests
+and synthetic rows do not qualify configured privileged capture/perform. The fixed
+production helper configuration must never be repointed to make the fixture work.
+
+Only checkpoint documentation advances here. Preserve the coherent implementation,
+existing long-term requirements and original private evidence. Each remaining stop
+requires review; authorization for one checkpoint does not authorize its successor.

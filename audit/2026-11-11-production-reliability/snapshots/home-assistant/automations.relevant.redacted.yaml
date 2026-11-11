@@ -1,0 +1,82 @@
+- id: '1772413528608'
+  alias: Hourly Wallpaper Update
+  description: Update wallpaper hourly when RESIDENT is home and within time window
+  triggers:
+  - minutes: '0'
+    trigger: time_pattern
+  - entity_id: person.audit_resident
+    to: home
+    trigger: state
+  conditions:
+  - condition: state
+    entity_id: person.audit_resident
+    state: home
+  - condition: template
+    value_template: '{% set t = now().strftime(''%H:%M'') %} {{ t >= ''08:00'' or
+      t < ''03:00'' }}
+
+      '
+  actions:
+  - action: rest_command.todo_ai_refresh
+  - delay: 00:01:00
+  - action: rest_command.render_wallpaper_now
+    response_variable: wallpaper_queue
+  - variables:
+      wallpaper_poll: {}
+      wallpaper_request_id: >-
+        {{ wallpaper_queue.get('content', {}).get('request_id', '')
+           if wallpaper_queue.get('content') is mapping else '' }}
+  - if:
+    - condition: template
+      value_template: >-
+        {{ wallpaper_queue.get('status') != 200 or not wallpaper_request_id or
+           not wallpaper_queue.get('content', {}).get('ok', false) or
+           not (wallpaper_queue.get('content', {}).get('queued', false) or
+                wallpaper_queue.get('content', {}).get('cached', false)) }}
+    then:
+    - stop: Wallpaper was not queued; inspect AI-HUB Wallpaper dispatch status
+      error: true
+  - repeat:
+      sequence:
+      - action: rest_command.render_wallpaper_status
+        data:
+          request_id: '{{ wallpaper_request_id }}'
+        response_variable: wallpaper_poll
+      - if:
+        - condition: template
+          value_template: >-
+            {{ wallpaper_poll.get('status') == 200 and
+               wallpaper_poll.get('content', {}).get('status') == 'running' }}
+        then:
+        - delay: 00:00:10
+      until:
+      - condition: template
+        value_template: >-
+          {{ wallpaper_poll.get('status') != 200 or
+             wallpaper_poll.get('content', {}).get('status') != 'running' or
+             repeat.index >= 120 }}
+  - if:
+    - condition: template
+      value_template: >-
+        {{ wallpaper_poll.get('status') != 200 or
+           not wallpaper_poll.get('content', {}).get('succeeded', false) or
+           not wallpaper_poll.get('content', {}).get('fully_successful', false) or
+           not wallpaper_poll.get('content', {}).get('last', {}).get('wallpaper_generated', false) }}
+    then:
+    - stop: Wallpaper did not complete successfully; inspect AI-HUB Wallpaper output status
+      error: true
+  mode: single
+
+- id: '1772662062842'
+  alias: Generate To-Do daily
+  description: ''
+  triggers:
+  - at: 00:01:00
+    trigger: time
+  conditions: []
+  actions:
+  - continue_on_error: true
+    action: rest_command.todo_generate_today
+    metadata: {}
+    data: {}
+  mode: single

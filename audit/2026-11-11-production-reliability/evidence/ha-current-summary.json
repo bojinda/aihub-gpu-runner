@@ -1,0 +1,53 @@
+{
+  "automations": {
+    "automation.generate_to_do_daily": {
+      "current": 0,
+      "state": "on"
+    },
+    "automation.hourly_wallpaper_update_2": {
+      "current": 0,
+      "state": "on"
+    }
+  },
+  "check": {
+    "id": 2,
+    "result": {
+      "action": "recover",
+      "classification": "blocked",
+      "eligible": false,
+      "failed_checks": [
+        "local_lock_timeout"
+      ],
+      "operator_required": true
+    },
+    "success": true,
+    "type": "result"
+  },
+  "status": {
+    "capabilities": [
+      "practical_recovery_v1",
+      "manual_idle_recovery_v1"
+    ],
+    "configuration_errors": [],
+    "incidents": [
+      {
+        "boot_id": "5de42cae-a926-4c38-99cb-e0961efa0dfb",
+        "classification": "blocked",
+        "error_code": "ollama_cleanup_unknown_or_duplicate_gpu_process",
+        "failed_checks": [
+          "unsupported_retained_failure_class"
+        ],
+        "job_id": "stage-52661113928ec71a6b02534e902870cf278adabd3677a97b",
+        "lease_id": "c18921c93b1143be90975136a5678dc6",
+        "operator_required": true,
+        "phase": "execution_complete",
+        "request_hash": "ce7432dda98f689cd9d023ce5fd39c18963c91fb3d44b6cded7950d3a368b849",
+        "resources": [
+          "gpu1"
+        ]
+      }
+    ],
+    "maintenance": "open",
+    "recovery_operational": true
+  }
+}

@@ -1,0 +1,17 @@
+✔ missing mandatory gate displays exact configuration error without an operational recovery button (35.6441ms)
+✔ actual card manual button confirms exact binding and displays verified completion (0.958ms)
+✔ actual card displays exact blocker and never opens confirmation (0.4052ms)
+✔ actual card remembers uncertain operation and sends verify without a second release (1.0443ms)
+✔ Recover Now checks afresh and asks for one confirmation (35.9776ms)
+✔ Emergency confirmation includes work loss and exact incident (0.4007ms)
+✔ cancelling emergency sends no mutation (0.1571ms)
+✔ dangerous concurrency remains blocked without a confirmation (0.0845ms)
+✔ emergency cannot reuse a previous normal recovery ticket (0.1088ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 95.4937

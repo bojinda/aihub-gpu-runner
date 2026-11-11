@@ -1,0 +1,177 @@
+--- default/aihub_gpu_runner/client.py
++++ deployed/aihub_gpu_runner/client.py
+@@ -37,18 +37,27 @@
+             raise CoordinationError('invalid_runner_configuration')
+         self.base, self.token, self.timeout = base_url.rstrip('/'), token, timeout
+         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+-    def request(self, method, route, payload=None):
++    def request(self, method, route, payload=None, *, deadline=None):
++        if (type(self.timeout) not in (int, float) or not math.isfinite(self.timeout) or
++                self.timeout <= 0):
++            raise CoordinationError('invalid_client_deadline')
++        deadline = min(deadline, time.monotonic()+self.timeout) if deadline is not None else time.monotonic()+self.timeout
+         request = urllib.request.Request(self.base + route,
+             data=None if payload is None else encode(payload), method=method,
+             headers={'Authorization': 'Bearer ' + self.token, 'Content-Type': 'application/json'})
+         try:
+-            with self.opener.open(request, timeout=self.timeout) as response:
++            from .http_deadline import read_opener, _remaining
++            with read_opener(deadline, NoRedirect()).open(request, timeout=_remaining(deadline)) as response:
+                 data = response.read(32 * 1024 * 1024 + 1)
++                _remaining(deadline)
+                 if len(data) > 32 * 1024 * 1024:
+                     raise OSError('bounded_response_required')
+                 return response.status, response.headers.get_content_type(), data
+         except urllib.error.HTTPError as exc:
+-            return exc.code, 'application/json', b'{}'
++            try:
++                return exc.code, 'application/json', b'{}'
++            finally:
++                exc.close()
+         except Exception:
+             raise OSError('runner_transport_unavailable') from None
+ 
+@@ -72,9 +81,16 @@
+     @staticmethod
+     def stage_id(operation_id, step):
+         return 'stage-' + hashlib.sha256(encode([check_id(operation_id), step])).hexdigest()[:48]
+-    def _request(self, request_id, method, route, payload=None, binary=False):
+-        try:
+-            status, media, data = self.transport.request(method, route, payload)
++    def _request(self, request_id, method, route, payload=None, binary=False, deadline=None):
++        try:
++            if deadline is not None and time.monotonic() >= deadline:
++                raise TimeoutError('client_wait_timeout')
++            if isinstance(self.transport, APITransport):
++                status, media, data = self.transport.request(method, route, payload, deadline=deadline)
++            else:
++                status, media, data = self.transport.request(method, route, payload)
++            if deadline is not None and time.monotonic() >= deadline:
++                raise TimeoutError('client_wait_timeout')
+         except Exception:
+             raise PendingJob(request_id, 'transport_uncertain') from None
+         if status >= 500:
+@@ -97,9 +113,13 @@
+     def run(self, request_id, target, operation, payload, artifact=False, on_status=None):
+         check_id(request_id)
+         expected = hashlib.sha256(encode({'target': target, 'operation': operation, 'payload': payload})).hexdigest()
++        output = CURRENT_OPERATION.get()
++        if output is not None:
++            output.track_runner_job(request_id, target, expected)
++        deadline = time.monotonic() + self.wait_timeout
+         status = self._request(request_id, 'POST', '/jobs',
+-                               {'request_id': request_id, 'target': target, 'operation': operation, 'payload': payload})
+-        deadline = time.monotonic() + self.wait_timeout
++                               {'request_id': request_id, 'target': target, 'operation': operation, 'payload': payload},
++                               deadline=deadline)
+         while True:
+             if status.get('request_hash') != expected or status.get('target') != target:
+                 raise CoordinationError('runner_job_identity_mismatch')
+@@ -107,20 +127,22 @@
+                 on_status(status)
+             state = status.get('state')
+             if state in ('success', 'failed', 'cancelled') and status.get('resources_released') is True:
+-                result = self._request(request_id, 'GET', '/jobs/' + request_id + '/result')
++                if output is not None:
++                    output.settle_runner_job(request_id, status)
++                result = self._request(request_id, 'GET', '/jobs/' + request_id + '/result', deadline=deadline)
+                 if state != 'success':
+                     raise KnownJobFailure('runner_job_failed_' + str(result.get('error_code') or state))
+                 if artifact:
+                     if result.get('artifact_available') is not True:
+                         raise KnownJobFailure('runner_artifact_missing')
+-                    return self._request(request_id, 'GET', '/jobs/' + request_id + '/artifact', binary=True)
++                    return self._request(request_id, 'GET', '/jobs/' + request_id + '/artifact', binary=True, deadline=deadline)
+                 return result['value']
+             if state == 'reconciling' or state == 'cleanup_pending' and status.get('supervision_active') is False:
+                 raise PendingJob(request_id, state)
+             if time.monotonic() >= deadline:
+                 raise PendingJob(request_id, state or 'client_wait_timeout')
+-            time.sleep(self.poll_interval)
+-            status = self._request(request_id, 'GET', '/jobs/' + request_id)
++            time.sleep(min(self.poll_interval, max(0, deadline-time.monotonic())))
++            status = self._request(request_id, 'GET', '/jobs/' + request_id, deadline=deadline)
+ 
+ 
+ CURRENT_OPERATION = ContextVar('runner_client_output_operation', default=None)
+@@ -136,10 +158,39 @@
+     Uses existing NativeLock/AtomicStore primitives. No scheduler, admission
+     ledger, backend recovery or automatic workflow replay is implemented here.
+     """
+-    def __init__(self, state_dir, output_paths):
++    def __init__(self, state_dir, output_paths, *, job_client_factory=None):
+         self.store = AtomicStore(state_dir)
+         self.scope = hashlib.sha256(encode([str(Path(path).resolve()) for path in output_paths])).hexdigest()
+         self.lock_path = self.store.path('output-' + self.scope + '.lock')
++        self.job_client_factory = job_client_factory or JobClient.from_environment
++
++    def reconcile_runner_jobs(self):
++        """GET-only reconciliation before a new writer; never cancel or replay."""
++        paths = list(self.store.path('operations').glob('*.json'))
++        if len(paths) > 5000:
++            raise OutputBusy('output_reconciliation_bound_exceeded')
++        client = None
++        for path in paths:
++            record = self.store.read(str(path.relative_to(self.store.root)))
++            if record.get('scope') != self.scope:
++                continue
++            for job_id, pending in record.get('runner_jobs', {}).items():
++                if pending.get('settled') is True:
++                    continue
++                try:
++                    client = client or self.job_client_factory()
++                    status = client.status(check_id(job_id))
++                    if (status.get('request_hash') != pending['request_hash'] or
++                            status.get('target') != pending['target']):
++                        raise CoordinationError('runner_job_identity_mismatch')
++                    if (status.get('state') not in ('success','failed','cancelled') or
++                            status.get('resources_released') is not True or
++                            status.get('supervision_active') is not False):
++                        raise OutputBusy('previous_runner_job_unresolved')
++                except (CoordinationError, OSError):
++                    raise OutputBusy('previous_runner_job_unresolved') from None
++                pending.update(settled=True, state=status['state'], error_code=status.get('error_code'))
++                self.store.write(str(path.relative_to(self.store.root)), record)
+     def begin(self, kind, request_id=None):
+         request_id = check_id(request_id or uuid.uuid4().hex)
+         lock = NativeLock(self.lock_path)
+@@ -155,6 +206,7 @@
+                     raise CoordinationError('previous_output_operation_' + old['status'] + '_no_replay')
+                 lock.close()
+                 return OutputOperation(self, name, old, None)
++            self.reconcile_runner_jobs()
+             record = {'request_id': request_id, 'scope': self.scope, 'kind': kind,
+                       'status': 'running', 'started': time.time(), 'finished': None, 'error': None}
+             self.store.write(name, record)
+@@ -207,6 +259,31 @@
+         details.update(fields)
+         self.slot.store.write(self.name, self.record)
+         self.slot.store.write('active.json', self.record)
++
++    def track_runner_job(self, request_id, target, request_hash):
++        if self.cached or self.lock is None:
++            raise CoordinationError('output_operation_not_owned')
++        jobs = self.record.setdefault('runner_jobs', {})
++        value = {'target':target, 'request_hash':request_hash, 'settled':False}
++        old = jobs.get(request_id)
++        if old is not None and any(old.get(k) != value[k] for k in ('target','request_hash')):
++            raise CoordinationError('runner_job_identity_mismatch')
++        if old is None:
++            jobs[request_id] = value
++            # Commit before POST; uncertain writes cannot authorize submission.
++            self.slot.store.write(self.name, self.record)
++            self.slot.store.write('active.json', self.record)
++
++    def settle_runner_job(self, request_id, status):
++        pending = self.record.get('runner_jobs', {}).get(request_id)
++        if (pending is None or self.lock is None or
++                status.get('request_hash') != pending['request_hash'] or status.get('target') != pending['target'] or
++                status.get('state') not in ('success','failed','cancelled') or
++                status.get('resources_released') is not True or status.get('supervision_active') is not False):
++            raise CoordinationError('runner_job_release_unverified')
++        pending.update(settled=True, state=status['state'], error_code=status.get('error_code'))
++        self.slot.store.write(self.name, self.record)
++        self.slot.store.write('active.json', self.record)
+     def finish(self, response=None, error=None):
+         if self.cached:
+             return

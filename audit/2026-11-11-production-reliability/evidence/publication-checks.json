@@ -1,0 +1,11 @@
+{
+  "source_entries_hash_verified": 504,
+  "base_remote_commits": {
+    "runner": "923e2a8ae8ef3572afa797fa338054aa82585045",
+    "meeting": "6e2497282b0a813c0dde6158520bdb814911f3a2",
+    "media": "b9cd865133b1582ec05927459408be480ab1eb60",
+    "music": "df610f375583e4be30b4221f8bdcd5e4ca37a60d"
+  },
+  "scope": "audit files only; production untouched",
+  "raw_private_evidence_published": false
+}

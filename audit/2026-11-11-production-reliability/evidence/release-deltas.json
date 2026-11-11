@@ -1,0 +1,66 @@
+[
+  {
+    "added": [
+      "aihub_gpu_runner/ollama_probe.py"
+    ],
+    "after": "ollama-probe-compatibility-20261110.1",
+    "before": "recovery-integrated-20261109.1",
+    "changed": [
+      "aihub_gpu_runner/ollama_cleanup.py"
+    ],
+    "removed": []
+  },
+  {
+    "added": [
+      "aihub_gpu_runner/idle_recovery.py",
+      "aihub_gpu_runner/ollama_diagnostics.py"
+    ],
+    "after": "ha-idle-manual-20261110.1",
+    "before": "ollama-probe-compatibility-20261110.1",
+    "changed": [
+      "aihub_gpu_runner/integrated_runtime.py",
+      "aihub_gpu_runner/ollama_cleanup.py",
+      "aihub_gpu_runner/ollama_probe.py"
+    ],
+    "removed": []
+  },
+  {
+    "added": [],
+    "after": "ha-recovery-completion-20261110.1",
+    "before": "ha-idle-manual-20261110.1",
+    "changed": [
+      "aihub_gpu_runner/__main__.py",
+      "aihub_gpu_runner/integrated_runtime.py",
+      "aihub_gpu_runner/ollama_cleanup.py",
+      "aihub_gpu_runner/ollama_probe.py",
+      "aihub_gpu_runner/scope_transition.py"
+    ],
+    "removed": []
+  },
+  {
+    "added": [
+      "aihub_gpu_runner/recovery_capture.py"
+    ],
+    "after": "helper-binding-correction-20261110.1",
+    "before": "ha-recovery-completion-20261110.1",
+    "changed": [
+      "aihub_gpu_runner/core.py",
+      "aihub_gpu_runner/integrated_control.py",
+      "aihub_gpu_runner/owned_execution.py",
+      "aihub_gpu_runner/owned_stop_helper.py",
+      "aihub_gpu_runner/wallpaper_lifecycle.py"
+    ],
+    "removed": []
+  },
+  {
+    "added": [],
+    "after": "ollama-recovery-restoration-20261110.1",
+    "before": "helper-binding-correction-20261110.1",
+    "changed": [
+      "aihub_gpu_runner/idle_recovery.py",
+      "aihub_gpu_runner/integrated_runtime.py",
+      "aihub_gpu_runner/ollama_probe.py"
+    ],
+    "removed": []
+  }
+]

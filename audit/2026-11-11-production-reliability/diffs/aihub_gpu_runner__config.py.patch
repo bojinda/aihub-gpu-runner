@@ -1,0 +1,40 @@
+--- default/aihub_gpu_runner/config.py
++++ deployed/aihub_gpu_runner/config.py
+@@ -8,8 +8,10 @@
+     path = Path(path).resolve()
+     value = strict_json(path.read_bytes())
+     if not isinstance(value, dict) or set(value) - {"state_dir", "lock_paths", "targets",
+-                                                   "listen", "auth_token_env", "workers", "host_stages"}:
++                                                   "listen", "auth_token_env", "workers", "host_stages", "recovery_control_required"}:
+         raise ValueError("invalid_configuration")
++    if type(value.get('recovery_control_required', False)) is not bool:
++        raise ValueError('invalid_recovery_control_configuration')
+     host = value.get("host_stages", {})
+     if (not isinstance(host, dict) or set(host) - {"whisperx"} or
+             any(not isinstance(policy, dict) or set(policy) - {"idle_memory_mb", "cleanup_samples", "cleanup_timeout"}
+@@ -82,7 +84,8 @@
+ 
+ def admission_from_config(path):
+     value, targets, state, locks, scope = load_config(path)
+-    return value, targets, Admission(AtomicStore(state), locks, scope, require_existing_locks=True)
++    return value, targets, Admission(AtomicStore(state), locks, scope, require_existing_locks=True,
++                                   control_required=value.get('recovery_control_required', False))
+ 
+ def configured_backends(targets):
+     backends = {}
+@@ -106,4 +109,14 @@
+ 
+ def make_runner(path):
+     value, targets, admission = admission_from_config(path)
+-    return value, Runner(admission, targets, configured_backends(targets), workers=value.get("workers", 4))
++    from .integrated_runtime import configure_admission, IntegratedApplication
++    settings=configure_admission(admission)
++    runner=Runner(admission, targets, configured_backends(targets), workers=value.get("workers", 4))
++    try:
++        if settings:
++            import os
++            runner.recovery_application=IntegratedApplication(runner,settings,
++                os.environ.get(value.get('auth_token_env','AIHUB_GPU_RUNNER_TOKEN'),''))
++        return value,runner
++    except BaseException:
++        runner.close();raise

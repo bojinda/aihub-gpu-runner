@@ -1,0 +1,56 @@
+[
+  {
+    "repository": "media",
+    "original_location": "/opt/dashboard-gen/Dockerfile",
+    "original_sha256": "8281fd272923dc52e95fad21de995890d8bfb10ee736323c84c18441dc44900e",
+    "publication": "effective structural summary in runtime-inventory.json; full original private"
+  },
+  {
+    "repository": "media",
+    "original_location": "/opt/dashboard-gen/docker-compose.yml",
+    "original_sha256": "d4c10c75e9d5e0c97e724f11666d1a49a26067115f38c80c98744d8c33d03884",
+    "publication": "effective structural summary in runtime-inventory.json; full original private"
+  },
+  {
+    "repository": "media",
+    "original_location": "/opt/dashboard-gen/docker-compose.override.yml",
+    "original_sha256": "a32f3499d6e88c33951086aefa3106505dd6088ba7b43a07b39de610fb9a4d65",
+    "publication": "effective structural summary in runtime-inventory.json; full original private"
+  },
+  {
+    "repository": "media",
+    "original_location": "/opt/dashboard-gen/compose.recovery.yml",
+    "original_sha256": "4456738d8323b98681b6cc50e010892dce4e5ec5d8212a12f47f1c68517d3f55",
+    "publication": "effective structural summary in runtime-inventory.json; full original private"
+  },
+  {
+    "repository": "runner",
+    "original_location": "/home/AIHUB_USER/comfyui/compose.yml",
+    "original_sha256": "37f6bb31cc91bde9be1cbcf9700dde8b55be5535aa718440a7391433b2499d28",
+    "publication": "effective structural summary in runtime-inventory.json; full original private"
+  },
+  {
+    "repository": "runner",
+    "original_location": "/home/AIHUB_USER/comfyui/compose.gpu1-20261024.override.yml",
+    "original_sha256": "7ca882251053f46ca83ed6ff37f54c1d62e77bfe6dcc39eb2b4761ae547fef22",
+    "publication": "effective structural summary in runtime-inventory.json; full original private"
+  },
+  {
+    "repository": "runner",
+    "original_location": "/opt/aihub-music-cleanup/manual-20261109.2/compose.cleanup.yml",
+    "original_sha256": "1de237a6c4d28600df427b5a274a676bf9ab782d3e80d565910dd7e0b204abcf",
+    "publication": "effective structural summary in runtime-inventory.json; full original private"
+  },
+  {
+    "repository": "music",
+    "original_location": "/home/AIHUB_USER/wake-audio/songservice/docker-compose.yml",
+    "original_sha256": "b35d0f1d9befe811360eb707d71742026f6c2ce461b41f344e4bb3f20037a44a",
+    "publication": "effective structural summary in runtime-inventory.json; full original private"
+  },
+  {
+    "repository": "music",
+    "original_location": "/home/AIHUB_USER/wake-audio/docker-compose.yml",
+    "original_sha256": "6b0e798dde2ba25f54bde01a223cb8eea8b3f9e8a6a30f524685ef78ba35facc",
+    "publication": "effective structural summary in runtime-inventory.json; full original private"
+  }
+]

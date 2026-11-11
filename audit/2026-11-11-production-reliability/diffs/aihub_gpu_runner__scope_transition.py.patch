@@ -1,0 +1,100 @@
+--- default/aihub_gpu_runner/scope_transition.py
++++ deployed/aihub_gpu_runner/scope_transition.py
+@@ -183,6 +183,97 @@
+     """Idle-only removal of node 95; commit journal, never activate config or call a backend."""
+     return _transition_wallpaper(old_config, new_config, evidence,
+                                  kind='wallpaper_remove_purge95', rollback=rollback)
++
++
++def transition_recovery_gate(old_config, new_config, evidence, *, rollback=False):
++    """Local, owner-free activation of the existing gate; one audited scope commit.
++
++    Only the recovery_control_required flag may change. Historical policy/job
++    bindings and the existing maintenance journal are never rewritten.
++    """
++    import copy
++    import time
++    from contextlib import ExitStack
++    from types import SimpleNamespace
++    from .config import configured_backends
++    from .core import guest_boot_id
++    from .maintenance import read_gate
++    from .recovery import RecoveryObserver, validate_policy, digest
++    if not sys.platform.startswith('linux'):
++        raise RecoveryRequired('recovery_gate_transition_requires_linux')
++    paths=tuple(Path(p) for p in (old_config,new_config));frozen=tuple(p.read_bytes() for p in paths)
++    old,targets,root,locks,old_scope=load_config(old_config)
++    new,new_targets,new_root,new_locks,new_scope=load_config(new_config)
++    before,after=(new,old) if rollback else (old,new)
++    expected=dict(before,recovery_control_required=True)
++    if before.get('recovery_control_required',False) is not False or after!=expected or old_scope==new_scope:
++        raise ValueError('only_recovery_gate_activation_permitted')
++    if root!=new_root or locks!=new_locks:
++        raise ValueError('recovery_gate_storage_change_forbidden')
++    bindings=dict(old_scope=old_scope,new_scope=new_scope,old_config_sha256=hashlib.sha256(frozen[0]).hexdigest(),
++                  new_config_sha256=hashlib.sha256(frozen[1]).hexdigest())
++    flags=('operator_approved_recovery_gate_transition','all_admission_callers_reviewed','callers_excluded')
++    refs=('approval_ref','ownership_sha256','maintenance_sha256','jobs_sha256','old_policy_id','new_policy_id','caller_evidence_sha256')
++    if (not isinstance(evidence,dict) or any(evidence.get(k) is not True for k in flags) or
++            any(not isinstance(evidence.get(k),str) or not evidence[k] for k in refs) or
++            any(evidence.get(k)!=v for k,v in bindings.items())):
++        raise ValueError('exact_recovery_gate_transition_evidence_required')
++    if (not (root/'ownership.json').is_file() or not (root/'recovery-control.json').is_file() or
++            not (root/'jobs').is_dir() or not (root/'results').is_dir()):
++        raise RecoveryRequired('existing_journals_required_no_initialization')
++    store=AtomicStore(root)
++    with ExitStack() as stack:
++        for name in ('maintenance.lock','practical-recovery.lock','recovery.lock','supervisor.lock','jobs.lock','admission.lock'):
++            stack.enter_context(NativeLock(store.path(name),create=False).held(0))
++        raw=store.path('ownership.json').read_bytes();state=strict_json(raw)
++        gate=Admission.__new__(Admission);gate.store,gate.scope,gate.lock_paths=store,state.get('scope'),locks
++        gate._validate(state)
++        if gate.scope!=old_scope:raise RecoveryRequired('transition_scope_changed_no_retry')
++        jobs={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in store.path('jobs').glob('*.json')}
++        maintenance=store.path('recovery-control.json').read_bytes();control=read_gate(store,True)
++        if (hashlib.sha256(raw).hexdigest()!=evidence['ownership_sha256'] or
++                hashlib.sha256(maintenance).hexdigest()!=evidence['maintenance_sha256'] or digest(jobs)!=evidence['jobs_sha256']):
++            raise RecoveryRequired('transition_journal_binding_changed')
++        if (not state['ready'] or state['owners'] or any(j['state'] not in FINAL for j in store.jobs()) or
++                control['mode']!='open' or control['active'] is not None or control['permits'] or
++                state.get('practical_control',{}).get('admission')!='open' or state['practical_control'].get('active') is not None):
++            raise RecoveryRequired('recovery_gate_transition_requires_settled_owner_free_state')
++        if state.get('verified_boot')!=guest_boot_id():raise RecoveryRequired('same_verified_boot_required')
++        installed=state['recovery_policy'];policy=installed['policy'];new_policy=dict(policy,scope=new_scope)
++        if installed['policy_id']!=digest(policy) or installed['policy_id']!=evidence['old_policy_id'] or digest(new_policy)!=evidence['new_policy_id']:
++            raise RecoveryRequired('transition_policy_binding_changed')
++        validate_policy(policy,SimpleNamespace(scope=old_scope,lock_paths=locks),targets)
++        validate_policy(new_policy,SimpleNamespace(scope=new_scope,lock_paths=locks),new_targets)
++        history=state.get('scope_transitions',[])
++        if any(row.get('approval_ref')==evidence['approval_ref'] for row in history):raise ValueError('fresh_transition_approval_required')
++        if rollback and (not history or history[-1].get('kind')!='recovery_control_required' or
++                history[-1].get('rollback') is not False or history[-1].get('old_scope')!=new_scope or
++                evidence.get('rollback_of')!=history[-1].get('approval_ref')):
++            raise ValueError('exact_previous_gate_activation_rollback_required')
++        gate._check_physical_identities(state)
++        for resource,path in sorted(locks.items()):
++            lock=stack.enter_context(NativeLock(path,create=False).held(0))
++            if lock_identity(os.fstat(lock.fd))!=state['lock_identity'][resource]:raise RecoveryRequired('physical_lock_identity_changed')
++        observer=RecoveryObserver(policy,targets,configured_backends(targets));deadline=time.monotonic()+policy['observation_timeout']
++        identities={s:observer.container(s,deadline) for s in policy['services']}
++        driver=observer.driver_health(deadline)
++        proof=observer.stopped_ready(tuple(sorted(locks)),deadline)
++        if proof.get('idle_ready') is not True or proof.get('stable_samples',0)<max(3,policy['samples']):raise RecoveryRequired('three_idle_samples_required')
++        if identities!={s:observer.container(s,deadline) for s in policy['services']}:raise RecoveryRequired('transition_service_generation_changed')
++        if (tuple(p.read_bytes() for p in paths)!=frozen or load_config(old_config)[-1]!=old_scope or load_config(new_config)[-1]!=new_scope or
++                store.path('ownership.json').read_bytes()!=raw or store.path('recovery-control.json').read_bytes()!=maintenance or
++                {p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in store.path('jobs').glob('*.json')}!=jobs):
++            raise RecoveryRequired('transition_inputs_changed')
++        gate._check_physical_identities(state)
++        stamp=timestamp()
++        replacement=dict(policy=new_policy,policy_id=digest(new_policy),approval_ref=evidence['approval_ref'],authorized_at=stamp)
++        record=dict(copy.deepcopy(evidence),kind='recovery_control_required',rollback=rollback,transitioned_at=stamp,
++                    previous_recovery_policy=copy.deepcopy(installed),new_recovery_policy=copy.deepcopy(replacement),
++                    physical_proof=proof,driver_health=driver,service_identities=identities)
++        state['scope']=new_scope;state['recovery_policy']=replacement
++        state['scope_transitions']=history+[record]
++        store.write('ownership.json',state)  # Single durable commit; uncertainty requires readback, never retry.
++        return dict(scope=new_scope,policy_id=replacement['policy_id'],journal_preserved=True,backend_actions=0)
+ 
+ 
+ def _transition_wallpaper(old_config, new_config, evidence, *, kind, rollback):

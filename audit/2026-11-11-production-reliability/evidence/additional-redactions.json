@@ -1,0 +1,20 @@
+[
+  {
+    "path": "qualification/tests/test_probe_installation.py",
+    "original_sha256": "4130d85b602603d1d2dbe9f4a60fc7ae390651b4e7ce468b8e05b921ae6568be",
+    "published_sha256": "6aaf6301741674be0e3fc813c4a14abd200c03f80c6de99867b06fa1f988b5c7",
+    "reason": "private locator placeholders in offline fixture"
+  },
+  {
+    "path": "qualification/tests/fixtures/production_gate_omitted.json",
+    "original_sha256": "105336fdb433e77978316692921c5ec15161bbe2cef7c3b81357979cff9f2208",
+    "published_sha256": "acbcaf5374de72cd04733db8b2f658c3b0873a240855438a6543952855d2d7d7",
+    "reason": "private locator placeholders in offline fixture"
+  },
+  {
+    "path": "dashboard-generator/audit\\2026-11-11-production-reliability\\diffs\\app__main.py.patch",
+    "original_sha256": "68632228d14950e5a14cb6f74126ab712aef0ed284f54037d8bda37623f5c136",
+    "published_sha256": "4fb8cd40a16480ad16c44127899fb7bf134850c4abed883f7bda76acbd5f8e59",
+    "reason": "private calendar address in removed historical default lines"
+  }
+]

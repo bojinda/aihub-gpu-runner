@@ -1,0 +1,83 @@
+--- default/aihub_gpu_runner/backends.py
++++ deployed/aihub_gpu_runner/backends.py
+@@ -8,7 +8,7 @@
+ from urllib.parse import urlencode, urlsplit
+ import urllib.request
+ from uuid import UUID
+-from .core import encode, strict_json
++from .core import RecoveryRequired, encode, strict_json
+ 
+ class Uncertain(Exception):
+     def __init__(self, code):
+@@ -316,6 +316,8 @@
+             raise Uncertain("invalid_queue_state")
+         return not queue["queue_running"] and not queue["queue_pending"]
+     def execute(self, operation, payload, deadline, progress):
++        checkpoint=getattr(self,'handoff_checkpoint',lambda:None)
++        checkpoint()
+         if not self._queue_empty(deadline):
+             raise Uncertain("unexpected_existing_comfy_work")
+         if not self._calibrated():
+@@ -326,7 +328,9 @@
+             raise Uncertain("unexpected_gpu_residency_before_comfy_submission")
+         try:
+             response = self.transport.json("POST", "/prompt",
+-                {"prompt": payload}, timeout=remaining(deadline))
++                {"prompt": payload, **({'extra_data':{'aihub_owned_submission':self.owned_submission}}
++                    if getattr(self,'owned_submission',None) else {})},
++                timeout=min(5,remaining(deadline)) if getattr(self,'owned_submission',None) else remaining(deadline))
+         except Exception:
+             raise Uncertain("comfy_submission_uncertain") from None
+         prompt_id = response.get("prompt_id")
+@@ -334,6 +338,7 @@
+             raise Uncertain("comfy_prompt_id_missing_or_invalid")
+         progress("running", {"prompt_id": prompt_id, "target": self.target.name})
+         while True:
++            checkpoint()
+             execution = self.reconcile(prompt_id, deadline)
+             if execution is not None:
+                 return execution
+@@ -377,22 +382,27 @@
+                              {"prompt_id": prompt_id}, artifact=data, media_type=media_type)
+         except Exception:
+             return Execution({}, {"prompt_id": prompt_id}, error_code="artifact_retrieval_or_validation_failed")
+-    def cleanup(self, execution, deadline):
++    def cleanup(self, execution, deadline, *, music_guard=None):
+         if not self._calibrated():
+             raise CleanupPending("cleanup_observer_not_calibrated")
+         try:
+             if not self._queue_empty(deadline):
+                 raise CleanupPending("unexpected_work_before_cleanup")
++            if music_guard is not None:
++                music_guard.intent(deadline)
+             # Temporary wallpaper A/B: retain executor caches while unloading models.
+             self.transport.ack("POST", "/free",
+                 {"unload_models": True, "free_memory": self.target.name != "wallpaper"},
+                 timeout=remaining(deadline, CleanupPending))
++            if music_guard is not None:
++                music_guard.acknowledged(deadline)
+             stable = 0
+             while True:
+                 remaining(deadline, CleanupPending)
+-                idle = self._queue_empty(deadline)
++                idle = (music_guard.observe(deadline)["queue_empty"] if music_guard is not None
++                        else self._queue_empty(deadline))
+                 used, ceilings = self._memory_sample()
+-                if self.target.conditioning_idle_memory_mb is not None:
++                if self.target.conditioning_idle_memory_mb is not None or music_guard is not None:
+                     remaining(deadline, CleanupPending)  # Never release on a late dual-GPU observation.
+                 if any(type(value) not in (int, float) or not math.isfinite(value) or value < 0
+                        for value in used.values()):
+@@ -410,6 +420,12 @@
+                 time.sleep(min(self.poll_interval, remaining(deadline, CleanupPending)))
+         except CleanupPending:
+             raise
++        except RecoveryRequired as exc:
++            # Guarded Music only: fixed internal reasons survive this boundary;
++            # arbitrary exception text and all uncertain effects stay generic.
++            from .music_cleanup import failure_code
++            code = failure_code(exc) if music_guard is not None else None
++            raise CleanupPending(code or "comfy_cleanup_uncertain") from None
+         except Exception:
+             raise CleanupPending("comfy_cleanup_uncertain") from None
+ 

@@ -1,0 +1,1370 @@
+[
+  {
+    "component": "runner",
+    "default_sha256": "658351de765a1117a788de44456c1a96a64eb12e5313e711fdb18046ada034fe",
+    "deployed_sha256": "658351de765a1117a788de44456c1a96a64eb12e5313e711fdb18046ada034fe",
+    "exact_blob_in_fetched_repository": true,
+    "path": "aihub_gpu_runner/__init__.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/__init__.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": "2ec0ff36de1f7c1f2e929c68f06c4ce0e4a76c0fecd378be1106601eacfceecd",
+    "deployed_sha256": "f48c7d9d711f66ce2b06e488f37eca0ec3020d697f8e43f09c979430fa651c11",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/__main__.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/__main__.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": "51276ce7ca420d3d3bc7865ffb3935201ee2d787d0f02797c115f07dbd1b23cb",
+    "deployed_sha256": "39978236b1332a5acd67c181b5dd6f1ae7a82e744d3cd16afb1e32231ea06b32",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/api.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/api.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": "738996acaec78897f94e78afa5f957f7c8e75be0398e77132f427cbe1ede8640",
+    "deployed_sha256": "a0a45fa409a8acbd2eae6edf9a8065d4bd17e69371180b8a9c9ff625ea1fddd5",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/backends.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/backends.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": "d39a00b07f4d23e0cbcdbdd6aa6c234c6d7760bf7f53f026876a62f5a5907a70",
+    "deployed_sha256": "b805c95713e6c78bede1b7df913e37585fe54f41d0c703b2ff67afbd9d41eab9",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/client.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/client.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "3ba5fa8356c2272ba4233d332eb4412deab159412c0298815e8f5a26c6a168ca",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/comfy_plugin.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/comfy_plugin.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": "a4f46bcd5dea07e38329f340cc2c5bbb2664052a0f1ffbb64d0c212eab0b9384",
+    "deployed_sha256": "197cc5d915057fb7bd84a055575716dd577c95b560deac8ecb2a30e35b20584b",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/config.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/config.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": "e99b2fc30b41b947376b2c6c01d9c8bdb7cc3442705cd0cace33ff0a0b51c185",
+    "deployed_sha256": "3ca04071acc38e7c23a78323c06b29d233ae29f52bad31977f32b985479d69eb",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/core.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/core.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": "e0049245e4c30e10223a824cf9003177fda855559cda6af380a12b018e707ee8",
+    "deployed_sha256": "e0049245e4c30e10223a824cf9003177fda855559cda6af380a12b018e707ee8",
+    "exact_blob_in_fetched_repository": true,
+    "path": "aihub_gpu_runner/dual_gpu.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/dual_gpu.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": "bfbd202fba265953ce1b96ff0a1fe850779456fa3a6752f4414c2532c9814f13",
+    "deployed_sha256": "bfbd202fba265953ce1b96ff0a1fe850779456fa3a6752f4414c2532c9814f13",
+    "exact_blob_in_fetched_repository": true,
+    "path": "aihub_gpu_runner/host_stage.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/host_stage.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": "a7066fe40e67872e793bc0ef8e268931dca94e626775105af0c0bd881717265f",
+    "deployed_sha256": "a7066fe40e67872e793bc0ef8e268931dca94e626775105af0c0bd881717265f",
+    "exact_blob_in_fetched_repository": true,
+    "path": "aihub_gpu_runner/http_deadline.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/http_deadline.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "16018390eff142bdf09225c02a6a3ffeb4640ded1526b2b0b2c6e1af0b52372c",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/idle_recovery.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/idle_recovery.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "8039b6d41dd73b53d33a95bff05f2e8e3ccd672880bacb6760e3de247970f149",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/ingress.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/ingress.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "d5f772cffd361a040159878c26ef9cbbd937e724092a9cea77ca86dfa845babc",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/integrated_control.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/integrated_control.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "7a2b0c8fdbe7576088c37a8c582957c7af72d75d7bd3a9f71c26ebe1877af1c7",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/integrated_runtime.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/integrated_runtime.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": "d05fd3befffc87882c77179d64a81bb9064f59f84ca551784a7feb440ff687be",
+    "deployed_sha256": "d05fd3befffc87882c77179d64a81bb9064f59f84ca551784a7feb440ff687be",
+    "exact_blob_in_fetched_repository": true,
+    "path": "aihub_gpu_runner/lock_migration.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/lock_migration.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "49a36ace73a0f79d2dbd15ed5818fddb8df431ecda0d13282af74740b1205613",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/maintenance.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/maintenance.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "9bd57e32d55fa6b192a86605d7ea32ca195b25ffea05133f6249529172f4bbe1",
+    "exact_blob_in_fetched_repository": true,
+    "path": "aihub_gpu_runner/music_cleanup.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/music_cleanup.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "ba0273a29a81bf85429f8fa03dd39178a44da22f3796a22412511dc7a1086ed2",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/native_settlement.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/native_settlement.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": "c73933bb7c211eaad85d32c9961be08e1fad29638dbac1748a4af929bf84fd1b",
+    "deployed_sha256": "3e5631bfe33ebd7d9486621e736a5701825fd401643c3c66eecceb92a9d37d19",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/ollama_cleanup.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/ollama_cleanup.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "179e6beac6928e3fe77ec8255c8157b084530b52e30fd1b1f41efe5c53a884d9",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/ollama_diagnostics.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/ollama_diagnostics.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "92c83022ff2588a810e4f52621ce9958e2b1565552196fe64301adda8d1635c4",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/ollama_probe.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/ollama_probe.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "adf12a1d444cf05b788ba183cc6ce32ef968ae8387d1cffb628e3ef7b5495ad5",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/owned_execution.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/owned_execution.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "1d676a5d4fdb0554f789ab31d99e0f94140332ab96b5cb376a1de809687ce2c5",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/owned_stop_helper.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/owned_stop_helper.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "b09423d94ba070afb00f368d46634f7ae53f4e7ead02f4eeed50213929fd673c",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/practical_recovery.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/practical_recovery.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "843529b9fb5f208ee81a89ee44a3cca66eb2946adcf2ccdcadacee0b96fcc805",
+    "exact_blob_in_fetched_repository": true,
+    "path": "aihub_gpu_runner/reboot_contract.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/reboot_contract.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": "d01d588d7ff054d81eb7e854fb12864b460360b5503d23f456c3a29c89d8ab6f",
+    "deployed_sha256": "cb638c05fec70f163434de54723a720ca2f8c2514496ebdd3facfb8814a2c288",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/recovery.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/recovery.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "411242faae5b454ab2af14c359ea48bf4ff0e34e6b7f9c432fe7cb2a660197f8",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/recovery_api.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/recovery_api.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "973ed9918ca0cef98395739417af5ec7b42979ac44cb4ab4da866014641dfe57",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/recovery_capture.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/recovery_capture.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "645452a3dca3fb9265a14c5277d312404914e78311343be171491e4d26ce9cfb",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/recovery_checks.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/recovery_checks.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "3508b7de70dbd93e87d64b6183ce5cf93bc8d9f265e538f3b48392b2cb54c6c0",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/recovery_control.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/recovery_control.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "757c3b7b35040ccd83f1fcc9aaabb5d44a3d3b9e565b127e1e2b5cb04bae5adb",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/recovery_observer.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/recovery_observer.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": "23c5c94571028dc93440d4aa0e5749690420853510af6e1dc609f84533c9bca9",
+    "deployed_sha256": "7a9110967ea790899a0402473ce6a1f6141f96e11905633bdae4676f0155ad27",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/recovery_summary.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/recovery_summary.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": "c8307970f14f0fb77d82a541ba6ec2e3117283c1fc7e9cc75e6fd3b32c5fcc99",
+    "deployed_sha256": "fdf5338e1b5e9229c4e5f8977187bf0f5a9a45bb296e2f8ccbb63e8469f17840",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/scope_transition.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/scope_transition.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "c4c854d4d6ba6fc76b68f512226ebe6a839592ee9f7c988305285079a177fff4",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/target_barrier.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/target_barrier.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": "dd7565be27d52690344d664f32915b9b15fbf0b84e4f0318cfef910a2ce5404f",
+    "deployed_sha256": "96409c3df0083d518d9f90213cd10b5100312556d48829b25711a47f104d760b",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/wallpaper_lifecycle.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/wallpaper_lifecycle.py"
+  },
+  {
+    "component": "runner",
+    "default_sha256": null,
+    "deployed_sha256": "79f762911d24e2e6922e5c1ba9b6eda339ead7e41b054e0ab31e09dd6e06dc33",
+    "exact_blob_in_fetched_repository": false,
+    "path": "aihub_gpu_runner/worker_handoff.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/worker_handoff.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "49bf95d2b7b7ec34325392b1678844839aa1ae2727720d17239e65b35d8efea6",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_editorial_context.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_editorial_context.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "10e93a883322de65610ffa22c7e79fc883dc8676090333a17fd26fc9c7211fc4",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_whole_schema.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_whole_schema.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "b02c60637234c679c9217fb757710fb65a797184d217081ccf658c4d62b53b53",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_editorial_native_stage.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_editorial_native_stage.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "e1ca0eb7e63344670a9483925a7a2755fb2761b118efacd6df3348a5a82d789b",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/runner_transport_fixture.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/runner_transport_fixture.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "10783959b0dfca799d19536f30f1eb8be15cc7530c424304fa9ebce3230e0aed",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_meeting_postprocess.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_meeting_postprocess.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "093aa17f545b4cfb1e0a863c6170f1b067e7603eb45b7b6563b7ed72577d904b",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_editorial_triage.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_editorial_triage.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "4d4805c487541f609c8c257aa8549e2f763b6d45dff206c5b110885d5dafa4f0",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_private_concern_limit.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_private_concern_limit.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "339a88e04af04d8db67a931d1b3c728af36062ad861744e86cc6c3cbdad5a0f4",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_editorial_response_continuation.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_editorial_response_continuation.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "1086105c7d4103b3f077129cc5efc31dcef19f4dd26753e71c0eef452cf33911",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_commitment_evidence.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_commitment_evidence.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "b70a5591b9a82bf25e3bf5d318b478c0816d9cec70f9c6f8be9e4cedbe07b367",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_whole_selection.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_whole_selection.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "5ad4e83df4c4217319fcda6473ab1ebf1ab2294d35ce0fb901457760ee1486dd",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_editorial_saved_response.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_editorial_saved_response.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "b3ff447092993241c86a3c2235fc967b0b71f78598d8ada47e6652ed9d31d79f",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_speaker_production_review.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_speaker_production_review.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "f14f0ef76506bb24df2e7dc49e19daa349b7fe0cdddd18057cc6de12f8c07c8e",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_meeting_chunking.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_meeting_chunking.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "edaa19edc9cea62d1545c7b9fe066d8cc382007020603cb4f3aed2fb028b77dc",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_offline_saved_notes.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_offline_saved_notes.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "ca8ba7a489ba79cd8ccf0b7a8d376675b0580385d54c4ec1f7ea0572eaa99b82",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_whole_synthesis.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_whole_synthesis.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "c7afb855b88f86aa08b6db5157dd12b5a18bc7deeaddc2340ee77c25215727a0",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_editorial_quality.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_editorial_quality.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "96d49ed6a1f81476d06f45cb6046f952594e2760d2049f662a90fd8ff8cd1ec9",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_editorial_dispositions.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_editorial_dispositions.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "5a94e8df8f9d75a6199d26b377acd38d3d9022762cf6d2a340d240f5e6003aee",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_gpu_locks.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_gpu_locks.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "d6e6b4d10acad35098984661d3b4f0e96a2cd6ee9edf1d3993d0115f33c64063",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_whole_source.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_whole_source.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "2b5ac4e746f05987663d31db09de664ed1d5d3ed575a3f91ca5701a8f2dd0b9c",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_speaker_llm_review.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_speaker_llm_review.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "b51660e992023abcb5fb4e250a5e5f30b18f23385c8c992d93b3cecf6046adc8",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/gpu_admission_fixture.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/gpu_admission_fixture.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "d0a655779a96342c9bebb3c54a4f938699455e94464352e160e249b95bc9e94b",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_notes_length_quality.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_notes_length_quality.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "c5e74bd97a46e7667acf80c5e6167edccfcb13dbb6613b0cc2226d00d825a7e0",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_editorial_instructions.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_editorial_instructions.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "962cba99e5ffd3b06466780197d58eefacce1ebd0efaa09375e60863ed67f1c0",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_redaction.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_redaction.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "0143f670b5b5781553c3ad7a12857606d0217f50cf3c34ab3e4f89cda42ec6a0",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_action_tables.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_action_tables.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "a0243b96552a6f86174a1995142353447d61064b4f5182e74dcb797b49b82eb2",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_editorial_structure.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_editorial_structure.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "faf2fe6d466de10b070546b7fdc8360cfae0b7bc803ea12572bdbfdc667d2514",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_speaker_turns.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_speaker_turns.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "5017e24126e21fc94cf8aaa57279b2966a8cf06f63e821cf6880ca96960b8cff",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_editorial_paraphrases.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_editorial_paraphrases.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "56b9e8dd9658bb080a15a28f62ae6d57544bf80056a7dbc8c59cf0befbfbb41c",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_notes_correction.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_notes_correction.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "db488cacf68c6d29aba89106373bd71ca81629ef1e7965bd5e0066dc9e91a71e",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_editorial_generation.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_editorial_generation.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "0f6485aaf17b0ef8ba44aee1f4ab9c027facea3aea2502434c8053d1bb10532e",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_editorial_continuation_script.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_editorial_continuation_script.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "09972f13890b14a0d128bd035f3483c7c890c9b64036db236c424e55928ac863",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_recording_cleanup.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_recording_cleanup.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "bf368cc6f37f06d05071bc63e7d170c37f5760cc03a0134ac99adfcb7bad7045",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_speaker_workflow.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_speaker_workflow.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "f9c5119ee6acac4a4001be34d221d8ec09488f18a5d2614d90ca2f63bb513bed",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_editorial_reference_ranges.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_editorial_reference_ranges.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "0aaffab85b5375695998a81a8162ec4f2a1aa63e1f938681d58c67652b1f7df1",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_meeting_notes_workflow.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_meeting_notes_workflow.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "8daee30b477bd0c3a0b5849c0bff79a7d1d266866886dc7b11057cd16866524a",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_meeting_stage_identity.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_meeting_stage_identity.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "5d9404d4d55cdd35373deb2d54c74e58c2f2aced885d50720b92c6d57a73f063",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_meeting_output_grounding.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_meeting_output_grounding.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "305934bc3825c7d43d2ad55b4ada54e00090896f57fe432cf0c2343ff8f36c8f",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_editorial_private_projection.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_editorial_private_projection.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "3bd4cea3b63bcbc78f8b9ee019f8ebb9b594ee8043cb4a6de8bc1f95eff386a7",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_gpu_admission.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_gpu_admission.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "9276e31849e1c9024217296240816b8039c517a48c315f4e8be15de2c9694a0b",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_speaker_suggestions.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_speaker_suggestions.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "ab09fce876ea9652305e22857fb360c3d9057f25ca2a570ed8d7121b181de83d",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_editorial_notes.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_editorial_notes.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "fd58803afa0517c3da8ddb99b90800d3f92ae62ffb7386deed1a4a6b7f45ddbe",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_repository_generalization.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_repository_generalization.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "85870db92d58e62679aff74458b0a7ce0e6bf1a46bd84cc32f04da8e21e6ed97",
+    "exact_blob_in_fetched_repository": true,
+    "path": "tests/test_correction_integration.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/tests/test_correction_integration.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "06bc4803accd3f0ec52826c98ab2d4d65221f3f770abf20b025b9c60837675c9",
+    "deployed_sha256": "06bc4803accd3f0ec52826c98ab2d4d65221f3f770abf20b025b9c60837675c9",
+    "exact_blob_in_fetched_repository": true,
+    "path": "controller/utils.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/controller/utils.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "076ec468459eab280aea042935688791fa23f2001130fdc5519cdab546740791",
+    "deployed_sha256": "076ec468459eab280aea042935688791fa23f2001130fdc5519cdab546740791",
+    "exact_blob_in_fetched_repository": true,
+    "path": "controller/config.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/controller/config.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "a16cb44e0d24a44b950b826a2984002980ce1f930dbe202d859d5c52b81138b5",
+    "deployed_sha256": "a16cb44e0d24a44b950b826a2984002980ce1f930dbe202d859d5c52b81138b5",
+    "exact_blob_in_fetched_repository": true,
+    "path": "controller/session_store.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/controller/session_store.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "6b27770a5283b143c74f761e993771532c3913a47e378702184fca96af6c7144",
+    "deployed_sha256": "6b27770a5283b143c74f761e993771532c3913a47e378702184fca96af6c7144",
+    "exact_blob_in_fetched_repository": true,
+    "path": "controller/registry.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/controller/registry.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "deployed_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "exact_blob_in_fetched_repository": true,
+    "path": "controller/__init__.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/controller/__init__.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "063291e91271f718c44cf872b257def6cfe7d1a5978c33ab6fdfccf5deda649f",
+    "deployed_sha256": "063291e91271f718c44cf872b257def6cfe7d1a5978c33ab6fdfccf5deda649f",
+    "exact_blob_in_fetched_repository": true,
+    "path": "controller/app.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/controller/app.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "1ca135542400a0abef4d286cf9f8f1df3d4dee791cc4cc5590b0e3f7469ce454",
+    "deployed_sha256": "1ca135542400a0abef4d286cf9f8f1df3d4dee791cc4cc5590b0e3f7469ce454",
+    "exact_blob_in_fetched_repository": true,
+    "path": "controller/models.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/controller/models.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "b9f6dbae54904044fbc984bf41435cf786f02595185f9e827208390ca8868a4d",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/apply_notes_corrections.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/apply_notes_corrections.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "75daa49bfc9bab38fa40f39fefc69a0edd3df585c719b9b3b52dbbd41e8acb12",
+    "deployed_sha256": "75daa49bfc9bab38fa40f39fefc69a0edd3df585c719b9b3b52dbbd41e8acb12",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/ha-start-lesson.sh",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/ha-start-lesson.sh"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "1c4591b216636d0a974118bfb5f80fb18e407811d11b63ce0b7585137bdb1772",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/with-gpu-lock.sh",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/with-gpu-lock.sh"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "769ccd7c9209b2ccddb500eb3f03d0f12f8d2fdd94ff9463d5670eb4ba35c370",
+    "deployed_sha256": "27a5bb24cdb89c0965c164a5bfda74764b70d43162f86c0ae48e6e07be03c6a2",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/ollama_session_summary.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/ollama_session_summary.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "846a7ec5a4e585f4e328d526f7ad0e07c63cf2cef7f494c6994ddd1c0ed9cbd1",
+    "deployed_sha256": "f00bf9ff20a37b0a22fd2824d614cab39e554c48d47599519f0b856f3fc694cb",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/postprocess-lesson.sh",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/postprocess-lesson.sh"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "72dded74798101f9f7295cdf7ac9f981f83b42f94864fdb97f55cc8ed6e1fbad",
+    "deployed_sha256": "72dded74798101f9f7295cdf7ac9f981f83b42f94864fdb97f55cc8ed6e1fbad",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/render-speaker-transcript.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/render-speaker-transcript.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "cf0f266f0138e062e77f47e8e84e5e948e8466a17365ca26412a37d9f1751e83",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/summarize-existing-meeting.sh",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/summarize-existing-meeting.sh"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "a720332cc88a7148ecbf6d731061c8507d27c126ecb1a7f10d3182e5304fa847",
+    "deployed_sha256": "a720332cc88a7148ecbf6d731061c8507d27c126ecb1a7f10d3182e5304fa847",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/ha-stop-meeting.sh",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/ha-stop-meeting.sh"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "5724afb506a655aaac92e055c5dbfad9fd4c1d8ee77ce81b5dbb4b878bed8431",
+    "deployed_sha256": "5724afb506a655aaac92e055c5dbfad9fd4c1d8ee77ce81b5dbb4b878bed8431",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/ollama_meeting_summary.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/ollama_meeting_summary.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "bde386705c0c89aefe773aa4e90eb6311e45709c34f626b8977eedecf22399dd",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_stage_inputs.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_stage_inputs.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "eb2ec25599abcd0d0d75e3f03283ffa13bdc1757e852cffe8bb1ea4bcd6de59f",
+    "deployed_sha256": "eb2ec25599abcd0d0d75e3f03283ffa13bdc1757e852cffe8bb1ea4bcd6de59f",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/transcript_chunker.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/transcript_chunker.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "cc94770822d37f966895fc5320623a3369dd44f8834c0666d5c7232308ae99a8",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_chunk_experiment.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_chunk_experiment.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "2f206d49e171fd8f66de1fdd315192c5d1c3139425cbc709d2d4664c2cd44008",
+    "deployed_sha256": "2f206d49e171fd8f66de1fdd315192c5d1c3139425cbc709d2d4664c2cd44008",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/ollama_lesson_summary.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/ollama_lesson_summary.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "c050915161b24c51b9ba9539b4df9c997034a24e1ec9d5fefa0359ad399d1967",
+    "deployed_sha256": "c050915161b24c51b9ba9539b4df9c997034a24e1ec9d5fefa0359ad399d1967",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/record-meeting.sh",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/record-meeting.sh"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "dda3eb544aaa8aefdb1f655696b50c250b3882633c18efca6625ccad67824cba",
+    "deployed_sha256": "dda3eb544aaa8aefdb1f655696b50c250b3882633c18efca6625ccad67824cba",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/ha-start-meeting.sh",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/ha-start-meeting.sh"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "58b71ba29aca5f30440a278d5f89f6eb66409141e999c57fae4ebc0c3d8a4135",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/preflight_editorial.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/preflight_editorial.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "7853f8b904151a776392bc7ab754bedb06d7ce14a99424857d1a26e5d1ce5afb",
+    "deployed_sha256": "7853f8b904151a776392bc7ab754bedb06d7ce14a99424857d1a26e5d1ce5afb",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/ha-stop-lesson.sh",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/ha-stop-lesson.sh"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "b4399e127bb4c5d8c64c8b5ad0f21415a38141981d5a13c953e678d2f149a5d8",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/render_saved_notes.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/render_saved_notes.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "539e1e0d80adccb799f6356117a046a08bcf0472a63cb9c81388db94e63752e2",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/continue-editorial-responses.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/continue-editorial-responses.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "77d787ebfb8f61ed29dc10e8834ef585d2ad238503a54811874b595bc5f6d333",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/suggest_meeting_speakers.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/suggest_meeting_speakers.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "a1429296bb8942b176895ebea12932741b1d6087ebe9ce4792a120d3014bb8cd",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/speaker_review_worker.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/speaker_review_worker.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": "a50ef6fcfae4e920632c186d2a0daa6f4a5c7b125ec967d55b018b549e8bf5d9",
+    "deployed_sha256": "c69114a11bf0da8db7527aa52f60b4954ea5a1b85d3dbfc86ba000a8a471828e",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/postprocess-meeting.sh",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/postprocess-meeting.sh"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "b6ec0d0609f32679d81b588cc213ddc3fc9076c5c3e2fea8fde9bbe841acd8f5",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/export_meeting.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/export_meeting.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "e2f5e15e1b9e16936494aec78ab9cdafad3a4603fbb065f3e064e0d81948e9db",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/plan-meeting-chunks.sh",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/plan-meeting-chunks.sh"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "84b494b0315af9e0ff62648b9cc648ea89c989cac7dd566faaba1ae5461a3596",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/notes_correction.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/notes_correction.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "753d30011131904acec4ad9ca3f89ae5d4cb5dadcb7967075057facc5f1efce3",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/sections.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/sections.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "ee95d78ea7226225125a5f1eb8c72589229db591de727c5745a585fa65658fe0",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/editorial_quality.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/editorial_quality.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "83d51b3b8b8e79066e3d692b67d0e71755aad5c9d31b8961f65183d65848f083",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/whole_evidence.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/whole_evidence.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "b64b8e32020bebadda82338c8328987f24cedc635a247d1d9717255b52d5be2b",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/aliases.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/aliases.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "ddbaa1662a531b88e29f814aca2b847f264d17a462022447520a2b581f96bcdf",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/redaction.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/redaction.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "9b329169c9a1e8618d68358c30f01c62c908a214119fb4724b5518e0f1a018fa",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/chunking.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/chunking.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "29d006f2311b98af5fe377a0f7bc52f25b86b0f0694d8f687d0423ef66d91526",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/commitments.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/commitments.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "aa68f8bc46ab8322317a6d4367a2e3bed41da881f9ea482f3d17bef0171c5133",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/__init__.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/__init__.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "7560c62f8ecab62cb5bcd50a3526a5a941e1bc7e25a84c384de837185d95a29e",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/editorial_dispositions.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/editorial_dispositions.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "72d232fff9c5952302002b99a1e3ca4824896504949693d8673f9006e3adc71f",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/speaker_turn_review.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/speaker_turn_review.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "07c991767183d91577a993bcf4b7bc56edd3ad693d9fe47737aae2d0dee8ade8",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/editorial_checkpoint.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/editorial_checkpoint.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "e85bad3d68b56034b7f9e19f0a84cdfeabf2421bed95b016e9f4e608f38b9ab8",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/gpu_admission.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/gpu_admission.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "a06edcada1cf857eadbd068eb2da810300101ea60c216d83963e5a091fdd7889",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/actions.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/actions.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "929f7df0842032517bca606cbe362989ec2ac7f986354bb7f302d9e2f33508b8",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/rendering.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/rendering.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "a29ebf346e42644fe53d83b7945c0b23278ef8f2d8566269656c0ce29aa9deca",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/whole_synthesis.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/whole_synthesis.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "d7993c8b93d8f34e826dc26ba19eccdc5212ff1a81ebf4f9b57890bc96bf837e",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/speaker_turns.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/speaker_turns.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "c4acbf40d72fb0ac73b41c71048a8440e5df5421f4d8ca78b731b3d61e4cfb66",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/motions.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/motions.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "715c8d42a01dc728c73381e0fd52bf88310c3b3322eb02d1c49b4595a52fd8b6",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/speaker_suggestions.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/speaker_suggestions.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "85b9f7ddbb0ee04cd9e90e9a35c73ad8b86c53b953108fa06c981d902cd19f91",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/speaker_review.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/speaker_review.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "cbd490d880f10c120f58c11ba988a3a2ad912da7dc238a50341246f5705e96fb",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/normalization.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/normalization.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "fe8687d020166557a7163a46e2e250639dee87bbafef203297934803ffc305cf",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/qa.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/qa.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "01791382fb965e8dfd337283350ff28f4935353411d191211c24a7908b0561fa",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/editorial.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/editorial.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "a18c4a0ac22ffdc9081dcffe4443613030a489cb28b473731ec9ed9d270c6eef",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/publication.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/publication.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "a419bfa96b04939d7ac5a9955f2c11cca07a5c222f6a137a7b5fd171dffa0b91",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/ollama_response.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/ollama_response.py"
+  },
+  {
+    "component": "meeting",
+    "default_sha256": null,
+    "deployed_sha256": "c11dfa9122998fac91266507011149ecbea9bfb1d9cb4a88ab6d5f6ce8ba560e",
+    "exact_blob_in_fetched_repository": true,
+    "path": "bin/meeting_postprocess/whole_source.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/bin/meeting_postprocess/whole_source.py"
+  },
+  {
+    "component": "media",
+    "default_sha256": "a5c807387da8a3bc58786bf6b1f05c8eb5878ebced311d31c59b0ba30418e533",
+    "deployed_sha256": "e8a6cf9a6b689d3b62011956e9ab794afc2fdb0f10bdaca2445487dea5f38578",
+    "exact_blob_in_fetched_repository": false,
+    "path": "app/main.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/app/main.py"
+  },
+  {
+    "component": "media",
+    "default_sha256": null,
+    "deployed_sha256": "666fcbc0614bf925719db27dc088b94b50b5d84d58a801d49d9ab589e6753a9a",
+    "exact_blob_in_fetched_repository": true,
+    "path": "app/recovery_status.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/app/recovery_status.py"
+  },
+  {
+    "component": "media",
+    "default_sha256": null,
+    "deployed_sha256": "b38dbf4bb0b73e246f48153fe895c4ebf3dedfb8c8d5d2a9c94b096c4d078407",
+    "exact_blob_in_fetched_repository": false,
+    "path": "app/recovery_routes.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/app/recovery_routes.py"
+  },
+  {
+    "component": "media",
+    "default_sha256": null,
+    "deployed_sha256": "1bfc19236d4593a9299d6395f5c2dfc696d989cd3489b3fd669258caa2e0673a",
+    "exact_blob_in_fetched_repository": false,
+    "path": "app/pipeline_status.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/app/pipeline_status.py"
+  },
+  {
+    "component": "media",
+    "default_sha256": "9d0a7202f6bfcd0569c383f9ed9553cda3692fdcf7e6408c0c0127c36564be5c",
+    "deployed_sha256": "9d0a7202f6bfcd0569c383f9ed9553cda3692fdcf7e6408c0c0127c36564be5c",
+    "exact_blob_in_fetched_repository": true,
+    "path": "app/config.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/app/config.py"
+  },
+  {
+    "component": "media",
+    "default_sha256": null,
+    "deployed_sha256": "d53292462621b02270f3af2dd62309d84745f6ddf487c64c6517eb74f97d5cac",
+    "exact_blob_in_fetched_repository": false,
+    "path": "app/gpu_runner.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/app/gpu_runner.py"
+  },
+  {
+    "component": "media",
+    "default_sha256": null,
+    "deployed_sha256": "ca3a2acfeb95e3c592f50947ebe0a0a2339f274bb5fc8026e708a2381767d850",
+    "exact_blob_in_fetched_repository": true,
+    "path": "app/daily_quotes.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/app/daily_quotes.py"
+  },
+  {
+    "component": "media",
+    "default_sha256": null,
+    "deployed_sha256": "d2b2a227d78f1c4d7d94d81448b110c89114bee28399cac1d9c6018214bec4d8",
+    "exact_blob_in_fetched_repository": true,
+    "path": "app/recovery_ack.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/app/recovery_ack.py"
+  },
+  {
+    "component": "media",
+    "default_sha256": "d9a9509bc22fd36099bd9e1971a3a644e74dd8f9fc0a909ed2a9657bdcbb760d",
+    "deployed_sha256": "d9a9509bc22fd36099bd9e1971a3a644e74dd8f9fc0a909ed2a9657bdcbb760d",
+    "exact_blob_in_fetched_repository": true,
+    "path": "app/clothing.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/app/clothing.py"
+  },
+  {
+    "component": "media",
+    "default_sha256": null,
+    "deployed_sha256": "441886dfbc45f67c085e5379a071b24529cbade820926ee69dda42b1431c4100",
+    "exact_blob_in_fetched_repository": false,
+    "path": "app/recovery_media.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/app/recovery_media.py"
+  },
+  {
+    "component": "media",
+    "default_sha256": null,
+    "deployed_sha256": "d9443630c20adae26e948fe3c1a3754374db9e4ed2a4fbd0dd723cd80431f448",
+    "exact_blob_in_fetched_repository": false,
+    "path": "app/standalone_text.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/app/standalone_text.py"
+  },
+  {
+    "component": "media",
+    "default_sha256": null,
+    "deployed_sha256": "d23220be5c1029e977ad18761830ef590eb2f3bf0e659778668f2b563060cf2c",
+    "exact_blob_in_fetched_repository": false,
+    "path": "app/media_dispatch.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/app/media_dispatch.py"
+  },
+  {
+    "component": "media",
+    "default_sha256": "9fd5444fb15d8d19a76fd3133dc889fc2b86fabaad43041e0c7c837c26170091",
+    "deployed_sha256": "9fd5444fb15d8d19a76fd3133dc889fc2b86fabaad43041e0c7c837c26170091",
+    "exact_blob_in_fetched_repository": true,
+    "path": "app/prompts.py",
+    "same_as_default": true,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/app/prompts.py"
+  },
+  {
+    "component": "music",
+    "default_sha256": "ec612d0e64b38b3dcf2fb1c5c362657b72dadfda4ea94bfbf9090da9a7ed7cb6",
+    "deployed_sha256": "969162565960957cd7cbd7bd3dc44d0a5fa175ad9d3a5c09ed5b82afe1359f2b",
+    "exact_blob_in_fetched_repository": true,
+    "path": "app.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/app.py"
+  },
+  {
+    "component": "music",
+    "default_sha256": null,
+    "deployed_sha256": "6d7866fd74668d65934f4f1d9d312ccc5a71ac87d99a572e63965e59fa2dc792",
+    "exact_blob_in_fetched_repository": true,
+    "path": "gpu_runner.py",
+    "same_as_default": false,
+    "snapshot": "audit/2026-11-11-production-reliability/snapshots/deployed/gpu_runner.py"
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "at": "2026-11-11T14:58:39.127817+00:00",
+  "checks": {
+    "exact_incident_unchanged": true,
+    "exact_owner_unchanged": true,
+    "media_sources_unchanged": true,
+    "standalone_receipts_unchanged": true,
+    "automations_on_inactive": true,
+    "original_physical_locks": true,
+    "runner_helper_music_config_hashes_unchanged": true
+  },
+  "units": "MainPID=3524129\nNRestarts=0\nId=aihub-gpu-runner.service\nActiveState=active\nSubState=running\n\nId=meeting-postprocess.path\nActiveState=active\nSubState=waiting\n\nId=watch-lesson-recordings.path\nActiveState=active\nSubState=waiting\n",
+  "production_mutations": 0,
+  "current_lease_settled": false,
+  "current_recovery_authority_used": false
+}

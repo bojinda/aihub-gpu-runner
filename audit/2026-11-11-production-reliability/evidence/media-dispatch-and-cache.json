@@ -1,0 +1,76 @@
+{
+  "no_raw_tasks_or_output": true,
+  "receipt_count": 5,
+  "render": {
+    "dispatch": {
+      "blocking_job": {
+        "error_code": "ollama_cleanup_unknown_or_duplicate_gpu_process",
+        "request_id": "stage-52661113928ec71a6b02534e902870cf278adabd3677a97b",
+        "resources_released": false,
+        "state": "reconciling",
+        "supervision_active": false,
+        "target": "ollama"
+      },
+      "checked_at": "2026-11-11T14:32:37.979820+00:00",
+      "dispatch_status": "blocked",
+      "last_operation_error": "runner_uncertain",
+      "last_operation_failed": true,
+      "operation_status": "failed",
+      "operator_required": true,
+      "reason": "runner_owner_reconciling",
+      "request_id": "0a03ce3923eb44df9ab888cd574693d5"
+    },
+    "fully_successful": false,
+    "last": {
+      "error": "operation_failed",
+      "finished": 1794402108.2842708,
+      "fully_successful": false,
+      "pipeline_status": "uncertain",
+      "request_id": "0a03ce3923eb44df9ab888cd574693d5",
+      "stages": {
+        "composition": {
+          "status": "running"
+        },
+        "season": {
+          "reason": "runner_uncertain",
+          "runner_request_id": "stage-52661113928ec71a6b02534e902870cf278adabd3677a97b",
+          "runner_state": "reconciling",
+          "status": "uncertain"
+        },
+        "weather": {
+          "status": "success"
+        }
+      },
+      "started": 1794402060.7041981,
+      "status": "error",
+      "wallpaper_generated": false,
+      "warnings": [
+        {
+          "reason": "runner_uncertain",
+          "runner_request_id": "stage-52661113928ec71a6b02534e902870cf278adabd3677a97b",
+          "runner_state": "reconciling",
+          "stage": "season",
+          "status": "uncertain"
+        }
+      ]
+    },
+    "ok": false,
+    "request_id": "0a03ce3923eb44df9ab888cd574693d5",
+    "running": false,
+    "status": "failed",
+    "succeeded": false
+  },
+  "standalone_records": [
+    {
+      "day": "2026-11-11",
+      "file": "eb0b3c12d0400eac16d0a7d67d0d249a7ea3698b9c320d9a0328f709853426ee.json",
+      "operation_id": "standalone-f76ebfcf0c2e467fbfad4a3154f2efad",
+      "request_hash": "158709067b459cbe27d44057bbc04bc09de403d048e37244db3c0ee3cf18fb1a",
+      "request_id": "stage-bf38ebb47e71fcf3dfac8d7afae3b6b53f3e3e873bea3584",
+      "result_sha256": "b2ec72afbe65b2d2a25b5bd85fba6b24651ca62e6850a10deac08edb99bdf700",
+      "sha256": "b2ab5fcec7071aa9233daee786f1c20d9bce364d093ae0deddfe4170a5e89fed",
+      "state": "success",
+      "step": "todo-format"
+    }
+  ]
+}

@@ -1,0 +1,502 @@
+[
+  {
+    "path": "qualification/run.sh",
+    "sha256": "d11161ab23dcdfd489987f3a7aaff66e04aa12465bf11e6c15927f402efd1962",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/api.py",
+    "sha256": "39978236b1332a5acd67c181b5dd6f1ae7a82e744d3cd16afb1e32231ea06b32",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/backends.py",
+    "sha256": "a0a45fa409a8acbd2eae6edf9a8065d4bd17e69371180b8a9c9ff625ea1fddd5",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/client.py",
+    "sha256": "b805c95713e6c78bede1b7df913e37585fe54f41d0c703b2ff67afbd9d41eab9",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/comfy_plugin.py",
+    "sha256": "3ba5fa8356c2272ba4233d332eb4412deab159412c0298815e8f5a26c6a168ca",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/config.py",
+    "sha256": "197cc5d915057fb7bd84a055575716dd577c95b560deac8ecb2a30e35b20584b",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/core.py",
+    "sha256": "3ca04071acc38e7c23a78323c06b29d233ae29f52bad31977f32b985479d69eb",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/dual_gpu.py",
+    "sha256": "e0049245e4c30e10223a824cf9003177fda855559cda6af380a12b018e707ee8",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/host_stage.py",
+    "sha256": "bfbd202fba265953ce1b96ff0a1fe850779456fa3a6752f4414c2532c9814f13",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/http_deadline.py",
+    "sha256": "a7066fe40e67872e793bc0ef8e268931dca94e626775105af0c0bd881717265f",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/idle_recovery.py",
+    "sha256": "16018390eff142bdf09225c02a6a3ffeb4640ded1526b2b0b2c6e1af0b52372c",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/ingress.py",
+    "sha256": "8039b6d41dd73b53d33a95bff05f2e8e3ccd672880bacb6760e3de247970f149",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/integrated_control.py",
+    "sha256": "d5f772cffd361a040159878c26ef9cbbd937e724092a9cea77ca86dfa845babc",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/integrated_runtime.py",
+    "sha256": "7a2b0c8fdbe7576088c37a8c582957c7af72d75d7bd3a9f71c26ebe1877af1c7",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/lock_migration.py",
+    "sha256": "d05fd3befffc87882c77179d64a81bb9064f59f84ca551784a7feb440ff687be",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/maintenance.py",
+    "sha256": "49a36ace73a0f79d2dbd15ed5818fddb8df431ecda0d13282af74740b1205613",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/music_cleanup.py",
+    "sha256": "9bd57e32d55fa6b192a86605d7ea32ca195b25ffea05133f6249529172f4bbe1",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/native_settlement.py",
+    "sha256": "ba0273a29a81bf85429f8fa03dd39178a44da22f3796a22412511dc7a1086ed2",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/ollama_cleanup.py",
+    "sha256": "3e5631bfe33ebd7d9486621e736a5701825fd401643c3c66eecceb92a9d37d19",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/ollama_diagnostics.py",
+    "sha256": "179e6beac6928e3fe77ec8255c8157b084530b52e30fd1b1f41efe5c53a884d9",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/ollama_probe.py",
+    "sha256": "92c83022ff2588a810e4f52621ce9958e2b1565552196fe64301adda8d1635c4",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/owned_execution.py",
+    "sha256": "adf12a1d444cf05b788ba183cc6ce32ef968ae8387d1cffb628e3ef7b5495ad5",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/owned_stop_helper.py",
+    "sha256": "1d676a5d4fdb0554f789ab31d99e0f94140332ab96b5cb376a1de809687ce2c5",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/practical_recovery.py",
+    "sha256": "b09423d94ba070afb00f368d46634f7ae53f4e7ead02f4eeed50213929fd673c",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/reboot_contract.py",
+    "sha256": "843529b9fb5f208ee81a89ee44a3cca66eb2946adcf2ccdcadacee0b96fcc805",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/recovery.py",
+    "sha256": "cb638c05fec70f163434de54723a720ca2f8c2514496ebdd3facfb8814a2c288",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/recovery_api.py",
+    "sha256": "411242faae5b454ab2af14c359ea48bf4ff0e34e6b7f9c432fe7cb2a660197f8",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/recovery_capture.py",
+    "sha256": "973ed9918ca0cef98395739417af5ec7b42979ac44cb4ab4da866014641dfe57",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/recovery_checks.py",
+    "sha256": "645452a3dca3fb9265a14c5277d312404914e78311343be171491e4d26ce9cfb",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/recovery_control.py",
+    "sha256": "3508b7de70dbd93e87d64b6183ce5cf93bc8d9f265e538f3b48392b2cb54c6c0",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/recovery_observer.py",
+    "sha256": "757c3b7b35040ccd83f1fcc9aaabb5d44a3d3b9e565b127e1e2b5cb04bae5adb",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/recovery_summary.py",
+    "sha256": "7a9110967ea790899a0402473ce6a1f6141f96e11905633bdae4676f0155ad27",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/scope_transition.py",
+    "sha256": "fdf5338e1b5e9229c4e5f8977187bf0f5a9a45bb296e2f8ccbb63e8469f17840",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/target_barrier.py",
+    "sha256": "c4c854d4d6ba6fc76b68f512226ebe6a839592ee9f7c988305285079a177fff4",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/wallpaper_lifecycle.py",
+    "sha256": "96409c3df0083d518d9f90213cd10b5100312556d48829b25711a47f104d760b",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/worker_handoff.py",
+    "sha256": "79f762911d24e2e6922e5c1ba9b6eda339ead7e41b054e0ab31e09dd6e06dc33",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/__init__.py",
+    "sha256": "658351de765a1117a788de44456c1a96a64eb12e5313e711fdb18046ada034fe",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/aihub_gpu_runner/__main__.py",
+    "sha256": "f48c7d9d711f66ce2b06e488f37eca0ec3020d697f8e43f09c979430fa651c11",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/home_assistant/aihub-recovery-card.js",
+    "sha256": "60110e51a912b89525ff5b88d5cdec96325a24d46592ff55baf44c9101ada6fc",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/media/recovery_media.py",
+    "sha256": "441886dfbc45f67c085e5379a071b24529cbade820926ee69dda42b1431c4100",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/media/recovery_routes.py",
+    "sha256": "b38dbf4bb0b73e246f48153fe895c4ebf3dedfb8c8d5d2a9c94b096c4d078407",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/recovery_fixture.py",
+    "sha256": "477dc6f8cb21553d307ed36f6967623f9926cc818139560ed12ea3a1d209dd4f",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_audit.py",
+    "sha256": "2c763d6ad16bd423a9b77420423c970ce96885e49d510a6d01fce86ecc47fd6a",
+    "provenance": "fresh audit test"
+  },
+  {
+    "path": "qualification/tests/test_automatic_recovery.py",
+    "sha256": "fd1749159a65f5b19edc43e89bb72a275a287280e4004c3893fca2e59405537a",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_comfy_cleanup_ack.py",
+    "sha256": "7a2afb8f53a935c3911c480d5caaaae37b8fafc5ee82443f5102881b854b39f7",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_conditioning_transition.py",
+    "sha256": "038f236d60e85175a3a8adb34a78ab25dfc2ee9df9d723775e943c3786e9a2c1",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_container_contract.py",
+    "sha256": "9be1107acc7256f10c814adca1552bd1d6a84306c786311596cf6d12810a1b25",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_deploy_helper.py",
+    "sha256": "69c9cfefab119d88897ee1a8c79edb1dc28a04ae7c2b959c6e50d395effdfe35",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_dual_gpu.py",
+    "sha256": "ad49772d784d699c0ef587c79578eea8ed5acb47be123a1204ea8b2463076e79",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_edge_cases.py",
+    "sha256": "d2211f93438f1e69da516dc413faa77fee82990e4205b27342cabfa753a2cc9f",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_ha_boundaries.py",
+    "sha256": "0dc230361160bf8f04c673ce557e0225a9dda5ef61d6aea60119260d6ed29b0b",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_ha_recovery.py",
+    "sha256": "15c112b075fa0f88173fcc872f409bc41911262615fd5a6299bf4bfe4c571bf2",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_http_read_deadline.py",
+    "sha256": "d6cc6ef81cb50178fd1d7e905353238d06679af5bdce60291fdb2ab68464f07e",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_idle_card.mjs",
+    "sha256": "ccab4417be8627577931ee5c5c91eae0218e5f99455c6fcfccf1e10b94c6c4ce",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_idle_prerequisite.py",
+    "sha256": "6765763b1046ea1079d1479e406ceb412d434abbdf4c1fbe4599e5c1d740a084",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_idle_recovery.py",
+    "sha256": "888fc6f09fb6a66ac524fe082bd0df21db4f1790e03581a78b5ce99b989c3dc2",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_lifecycle_transition.py",
+    "sha256": "77e1d94dee025c99d3ddb94db8b28409e5dccc6d235efa1f9428f250db5a41a8",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_lock_migration.py",
+    "sha256": "af389e489c5f48e62b14b2639b18ffb2d9799bf12b1976895224198b1d7dcc39",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_music_release.py",
+    "sha256": "31039cd78f91687376d7d8881a65b7c232cf61cc6e4ba12cdd340fe53aaf6628",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_music_release_review.py",
+    "sha256": "6adcf70d4ccf95f666d2f00e882a370fc71dfd0b2f20281f5d52ebf2fb6f7944",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_native_lock.py",
+    "sha256": "6bc585798b58def541b7321c37c09c8bf515b14b9de6f2963277e7bde91e3467",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_native_settlement.py",
+    "sha256": "5b4ab5d0cd9858336a4c7acf7711516563eaa1fdcdb307acf4d107d31797545c",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_ollama_census_exit.py",
+    "sha256": "66211c33a5cd835b02cc562ab32866bafd75cb147eedfb536232457cf2fc0067",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_ollama_child_settling.py",
+    "sha256": "dc21ec12c1c2704a0f618bb10ec8a6c14edb474d4c2c4e9daa77543da2503fe9",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_ollama_exit_races.py",
+    "sha256": "ce54073a273904c9123064e29e50fb34c6af62177899e469fae403d3bc2b9f13",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_ollama_physical_cleanup.py",
+    "sha256": "14c9968dad3f9b8f85deda3c17f807e62fbfc38336784e86115bf2b9f990afe5",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_ollama_readonly_probe.py",
+    "sha256": "14038106d5495882ba706b146184e13754b980d9fdcbc322465e60f87357027a",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_ollama_utilization_settling.py",
+    "sha256": "194a988cc51e02dc986e9e9adb85f321bbeea29953817675603c3ab2539b7d59",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_physical_lock_identity.py",
+    "sha256": "d7ac717cbc108a74b4a8da83a4d827f82a2cbdab8500c7f346c3332c015897c1",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_practical_card.mjs",
+    "sha256": "ee0b879647d7ab4b0d416bc1b94b516753bb1393092f23c4b098f50e5d551815",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_practical_recovery.py",
+    "sha256": "9ad9d09ca8b1611df120b485d66bd98648b75a377b8a281f4a35afc58d774aad",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_practical_retained.py",
+    "sha256": "5f8ed958031a9c7de601ad7c7b8f9c61d73f178790c17cbadd9333880b6a5b90",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_probe_exit_transition.py",
+    "sha256": "4d7ca9801c25c4f5fb0e2433e1cba8561bb21ba70ea70f6d729f2d576b46c0a0",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_probe_installation.py",
+    "sha256": "6aaf6301741674be0e3fc813c4a14abd200c03f80c6de99867b06fa1f988b5c7",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_r1.py",
+    "sha256": "eabff53fe786d0f7738cf256412aa427a802328d23e2c2b4efc35a0e26239371",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_reboot_contract.py",
+    "sha256": "b12b4fd5638a142422f6de8ea11425c5017668d12f39b211885694dd382ac63d",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_recovery_capture_binding.py",
+    "sha256": "9e03f3faf973fd586054df301e61b778b59a67eaaeb7ce6520ebaca4e3f31e11",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_recovery_card.mjs",
+    "sha256": "16011faf8d1f197bfb066a574a3d8ca24eab4a21d18e00e3fe6cab8d372b5912",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_recovery_gate_activation.py",
+    "sha256": "49cea5a95067e2fe74c523deb11435a21722f24bd089d310ccf348dfbf37d036",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_recovery_incidents.py",
+    "sha256": "46637d483dd50282277923e59986da51460762ae01e18dfb2827eaaaf94e8db9",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_recovery_review_corrections.py",
+    "sha256": "5bf5b134e977337dbb4251ac6bd91348ab3530dc58d65bcece90c36e6638d44a",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_recovery_startup_order.py",
+    "sha256": "f431a12dabe949565ec8b3ccf2b1d79eb604bf60b815988e735da1a67cbf162a",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_recovery_summary.py",
+    "sha256": "db7ded8a3d2d4bc02eabff6ad52a5ec74bf137adbccf72a8a795608828baaefa",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_recovery_timeout_budget.py",
+    "sha256": "55c483c1b5e0796c2fda0b09e90b84b1332727a1902f3f03bbfcfe643c3d9873",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_rejection_diagnostics.py",
+    "sha256": "fc4d987d13d15c4784b6f0dfdc2a1396217d08778185e5bc01f28515807e803a",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_reliability_faults.py",
+    "sha256": "58771755d93cd3298211fada20edf1d8f4b21d3eebd5553d795f188f6c01cb76",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_retained_recovery_evidence.py",
+    "sha256": "2229f9afe9594bc4477e9018d827e67e7ba132523cd6c6a6a95caea101929115",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_timeout_and_reboot_regressions.py",
+    "sha256": "55f7c4a273f3c6d6a9592e1bc89d276675b0556a1bf93b9639dd090fe25e6ee7",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_total_http_deadline.py",
+    "sha256": "b916cb47651e1abe306ac9a67f965b757eb689a5e3f64a856113dddc05f097ad",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_wallpaper_conditioning.py",
+    "sha256": "75630a225e7b66e6abfd32af553b42e49db0a8707d4a7f1b06c82609600d17fb",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_wallpaper_lifecycle.py",
+    "sha256": "426496b56964f4ff3002a24ab5409e07ffcf5953f7c75a2d3a06f337f9ba1804",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_wallpaper_transition.py",
+    "sha256": "d0d6d82674916a4c0fc242e73d61581a8d2f5fc06a4a73e5ca6dac9c4e5a712a",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/test_wallpaper_uuid_probes.py",
+    "sha256": "455c3b2bed5ec502ee1713fd2425010fe185f3a9d0d14d45fdfb7c518cb25784",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/__init__.py",
+    "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/tests/fixtures/production_gate_omitted.json",
+    "sha256": "acbcaf5374de72cd04733db8b2f658c3b0873a240855438a6543952855d2d7d7",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/home_assistant/custom_components/aihub_recovery/bridge.py",
+    "sha256": "6bd91b63800125f206b2cd2585e7f4f8ebeb1ebd4922366ab0090fe1d1434be3",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/home_assistant/custom_components/aihub_recovery/manifest.json",
+    "sha256": "3c59f8d13eeff50e086d962a55e4910ccb0c3ffd8049aca8c1d5a6ea79509db1",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/home_assistant/custom_components/aihub_recovery/__init__.py",
+    "sha256": "27c3bc1eed7501dd7b992435646bb1d3808ada9d95084e48d628f2974bb741da",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/comfy_nodes/aihub_recovery/runner.whl",
+    "sha256": "c32c58df70a497ff7df42178d5b3bfc78a8609359628d2d3605431919dc1590e",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  },
+  {
+    "path": "qualification/comfy_nodes/aihub_recovery/__init__.py",
+    "sha256": "abc46d242c61ff1335ff9be65bbe84e50143ce79368fafa58efe4da417d74a65",
+    "provenance": "captured source or preserved qualified synthetic fixture; selected tests executed"
+  }
+]

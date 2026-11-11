@@ -1,0 +1,51 @@
+aihub_recovery:
+  transport: media
+  url: http://192.0.2.102:8787/gpu-recovery
+  allow_private_http: true
+  read_token: !secret aihub_recovery_read_token
+  operate_token: !secret aihub_recovery_operate_token
+
+rest_command:
+  render_wallpaper_now:
+    url: "http://192.0.2.102:8787/render_async"
+    method: POST
+    content_type: "application/json"
+    payload: "{}"
+    timeout: 10
+
+  render_wallpaper_status:
+    url: "http://192.0.2.102:8787/render_status?request_id={{ request_id | urlencode }}"
+    method: GET
+    timeout: 10
+    
+  todo_generate_today:
+    url: "http://192.0.2.102:8787/todo_generate_today"
+    method: POST
+    timeout: 30
+    headers:
+      content-type: "application/json"
+    payload: "{}"
+    
+  todo_refresh_if_calendar_changed:
+    url: "http://192.0.2.102:8787/todo_refresh_if_calendar_changed"
+    method: POST
+    timeout: 60
+    headers:
+      content-type: "application/json"
+    payload: "{}"
+    
+  todo_ai_refresh:
+    url: "http://192.0.2.102:8787/todo_ai_refresh"
+    method: POST
+    timeout: 150
+    headers:
+      content-type: "application/json"
+    payload: "{}"
+    
+  dashboard_acknowledge_recoveries:
+    url: "http://192.0.2.102:8787/recovery-counter/acknowledge"
+    method: POST
+    headers:
+      authorization: !secret dashboard_recovery_ack_authorization
+    timeout: 10
+    

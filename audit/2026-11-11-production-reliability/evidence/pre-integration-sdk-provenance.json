@@ -1,0 +1,6 @@
+{
+  "archive_sha256": "a8032756c617764a93f16835145112a66a110fc95a8d26a2e68163221b79b848",
+  "verified_modules": 18,
+  "basis": "prior deployment capture plus pinned HOST-ROLLBACK modules; fresh current code is separately captured",
+  "limitations": "host SDK variant; do not infer all earlier CPU-runner installations were byte-identical"
+}

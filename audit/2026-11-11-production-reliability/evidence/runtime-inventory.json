@@ -1,0 +1,670 @@
+{
+  "containers": [
+    {
+      "command": [
+        "serve"
+      ],
+      "configured_image": "ollama/ollama@sha256:292ee7945dfc3d5840a181f3ab86fedb1e66703e02c8af98b50f4da56b7e278c",
+      "entrypoint": [
+        "/bin/ollama"
+      ],
+      "environment_keys_only": [
+        "OLLAMA_ORIGINS",
+        "CUDA_DEVICE_ORDER",
+        "NVIDIA_DISABLE_REQUIRE",
+        "NVIDIA_DRIVER_CAPABILITIES",
+        "OLLAMA_FLASH_ATTENTION",
+        "OLLAMA_KV_CACHE_TYPE",
+        "OLLAMA_LLM_LIBRARY",
+        "PATH",
+        "LD_LIBRARY_PATH",
+        "NVIDIA_VISIBLE_DEVICES",
+        "OLLAMA_HOST"
+      ],
+      "id": "f0039617649c424a3f5aba79e380c52b8f95f09a093b0081865e4045aae2a785",
+      "image_id": "sha256:39a0a3f22a5f2882b05c62f6f35761a4ed03811a495d34aa10295f648e1b346c",
+      "mounts": [
+        {
+          "destination": "/root/.ollama",
+          "read_write": true,
+          "source": "/var/lib/docker/volumes/ollama_ollama/_data"
+        }
+      ],
+      "name": "/ollama",
+      "pid": 2029149,
+      "ports": {
+        "11434/tcp": [
+          {
+            "HostIp": "",
+            "HostPort": "11434"
+          }
+        ]
+      },
+      "running": true,
+      "started_at": "2026-11-05T18:32:51.230426981Z"
+    },
+    {
+      "command": [
+        "--listen",
+        "0.0.0.0",
+        "--port",
+        "8188"
+      ],
+      "configured_image": "comfyui_wallpaper_pinned:2026-03-01",
+      "entrypoint": [
+        "/venv/bin/python",
+        "/app/main.py"
+      ],
+      "environment_keys_only": [
+        "NVIDIA_DRIVER_CAPABILITIES",
+        "HOME",
+        "XDG_CACHE_HOME",
+        "HF_HOME",
+        "HUGGINGFACE_HUB_CACHE",
+        "TRANSFORMERS_CACHE",
+        "TORCH_HOME",
+        "PATH",
+        "LANG",
+        "GPG_KEY",
+        "PYTHON_VERSION",
+        "PYTHON_SHA256"
+      ],
+      "id": "7fa3de022b9b733df02ef236d91a99a2346cf0ebb3a66b32b302df7b553c8760",
+      "image_id": "sha256:464931b7e322667559e291fcbd9a4646ed620812dbd34348fc259c3d53e58b87",
+      "mounts": [
+        {
+          "destination": "/app/custom_nodes",
+          "read_write": true,
+          "source": "/home/AIHUB_USER/comfyui/custom_nodes"
+        },
+        {
+          "destination": "/app/custom_nodes/aihub_qwen_gpu1",
+          "read_write": false,
+          "source": "/home/AIHUB_USER/comfyui/stage-20261024/aihub_qwen_gpu1"
+        },
+        {
+          "destination": "/app/input",
+          "read_write": true,
+          "source": "/home/AIHUB_USER/comfyui/input"
+        },
+        {
+          "destination": "/app/models",
+          "read_write": true,
+          "source": "/home/AIHUB_USER/comfyui/models"
+        },
+        {
+          "destination": "/app/output",
+          "read_write": true,
+          "source": "/home/AIHUB_USER/comfyui/output"
+        },
+        {
+          "destination": "/app/temp",
+          "read_write": true,
+          "source": "/home/AIHUB_USER/comfyui/temp-wallpaper"
+        },
+        {
+          "destination": "/app/user",
+          "read_write": true,
+          "source": "/home/AIHUB_USER/comfyui/user-wallpaper-pinned"
+        }
+      ],
+      "name": "/comfyui-wallpaper",
+      "pid": 0,
+      "ports": {
+        "8188/tcp": [
+          {
+            "HostIp": "",
+            "HostPort": "8190"
+          }
+        ]
+      },
+      "running": false,
+      "started_at": "2026-11-11T12:51:38.782044833Z"
+    },
+    {
+      "command": [
+        "--listen",
+        "0.0.0.0",
+        "--port",
+        "8188",
+        "--enable-cors-header",
+        "*"
+      ],
+      "configured_image": "comfyui_runtime_fixed:latest",
+      "entrypoint": [
+        "/venv/bin/python",
+        "/app/main.py"
+      ],
+      "environment_keys_only": [
+        "NVIDIA_DRIVER_CAPABILITIES",
+        "HOME",
+        "XDG_CACHE_HOME",
+        "HF_HOME",
+        "HUGGINGFACE_HUB_CACHE",
+        "TRANSFORMERS_CACHE",
+        "TORCH_HOME",
+        "PATH",
+        "LANG",
+        "GPG_KEY",
+        "PYTHON_VERSION",
+        "PYTHON_SHA256"
+      ],
+      "id": "f7387e4a0f4cd5f21beef7de7099cf91643eb82fe19504c19340419ea52341f0",
+      "image_id": "sha256:570aba279a10c9021515d30cb80066e0569bd26e491b025ed9a683cfee4883d3",
+      "mounts": [
+        {
+          "destination": "/app/input",
+          "read_write": true,
+          "source": "/home/AIHUB_USER/comfyui/input"
+        },
+        {
+          "destination": "/app/custom_nodes",
+          "read_write": true,
+          "source": "/home/AIHUB_USER/comfyui/custom_nodes"
+        },
+        {
+          "destination": "/run/aihub-music-runner",
+          "read_write": false,
+          "source": "/home/AIHUB_USER/.local/state/aihub-gpu-runner"
+        },
+        {
+          "destination": "/app/user",
+          "read_write": true,
+          "source": "/home/AIHUB_USER/comfyui/user"
+        },
+        {
+          "destination": "/app/temp",
+          "read_write": true,
+          "source": "/home/AIHUB_USER/comfyui/temp-music"
+        },
+        {
+          "destination": "/app/output",
+          "read_write": true,
+          "source": "/home/AIHUB_USER/comfyui/output"
+        },
+        {
+          "destination": "/app/main.py",
+          "read_write": false,
+          "source": "/opt/aihub-music-cleanup/manual-20261109.2/main.py"
+        },
+        {
+          "destination": "/app/aihub_music_cleanup.py",
+          "read_write": false,
+          "source": "/opt/aihub-music-cleanup/manual-20261109.2/aihub_music_cleanup.py"
+        },
+        {
+          "destination": "/run/aihub-music-cleanup",
+          "read_write": false,
+          "source": "/opt/aihub-music-cleanup/manual-20261109.2/settings"
+        },
+        {
+          "destination": "/app/models",
+          "read_write": true,
+          "source": "/home/AIHUB_USER/comfyui/models"
+        }
+      ],
+      "name": "/comfyui-music",
+      "pid": 3171275,
+      "ports": {
+        "8188/tcp": [
+          {
+            "HostIp": "",
+            "HostPort": "8188"
+          }
+        ]
+      },
+      "running": true,
+      "started_at": "2026-11-10T04:04:24.488332976Z"
+    },
+    {
+      "command": [
+        "python",
+        "/app/app.py"
+      ],
+      "configured_image": "wake-song-runner:reliability-20261101.2",
+      "entrypoint": null,
+      "environment_keys_only": [
+        "GENRE_PACKS_PATH",
+        "GPU_RUNNER_URL",
+        "ARCHIVE_DIR",
+        "NEW_NAME",
+        "TARGET_SECONDS",
+        "TZ",
+        "OLLAMA_MODEL",
+        "SEED_MP3",
+        "GPU_RUNNER_TOKEN",
+        "GPU_RUNNER_CLIENT_STATE",
+        "OLLAMA_TIMEOUT",
+        "GPU_RUNNER_MUSIC_TARGET",
+        "GPU_RUNNER_OLLAMA_TARGET",
+        "COMFY_URL",
+        "GPU_RUNNER_WAIT_SECONDS",
+        "WORKFLOW_PATH",
+        "LATEST_DIR",
+        "OLLAMA_URL",
+        "LATEST_NAME",
+        "GENRE_PICK_MODE",
+        "PATH",
+        "LANG",
+        "GPG_KEY",
+        "PYTHON_VERSION",
+        "PYTHON_SHA256"
+      ],
+      "id": "466fc652b55cdd46186f001f7586eb859fad0716f76a76378e3ac7ec86cbf6bc",
+      "image_id": "sha256:1a1701449e69ec0f529b20516211d89a96d4808b05909878e8eaac6e59048377",
+      "mounts": [
+        {
+          "destination": "/var/lib/wake-song-gpu-client",
+          "read_write": true,
+          "source": "/home/AIHUB_USER/wake-song-gpu-client-state"
+        },
+        {
+          "destination": "/latest-wake",
+          "read_write": true,
+          "source": "/home/AIHUB_USER/wake-audio/latest-wake"
+        },
+        {
+          "destination": "/archive-wake",
+          "read_write": true,
+          "source": "/home/AIHUB_USER/wake-audio/archive-wake"
+        },
+        {
+          "destination": "/seed/test.mp3",
+          "read_write": false,
+          "source": "/home/AIHUB_USER/wake-audio/test.mp3"
+        },
+        {
+          "destination": "/app",
+          "read_write": false,
+          "source": "/home/AIHUB_USER/wake-audio/songservice"
+        }
+      ],
+      "name": "/wake-songservice",
+      "pid": 1289375,
+      "ports": {
+        "8788/tcp": [
+          {
+            "HostIp": "",
+            "HostPort": "8788"
+          }
+        ]
+      },
+      "running": true,
+      "started_at": "2026-11-04T12:36:43.126666831Z"
+    },
+    {
+      "command": [
+        "nginx",
+        "-g",
+        "daemon off;"
+      ],
+      "configured_image": "nginx:alpine",
+      "entrypoint": [
+        "/docker-entrypoint.sh"
+      ],
+      "environment_keys_only": [
+        "PATH",
+        "NGINX_VERSION",
+        "PKG_RELEASE",
+        "DYNPKG_RELEASE",
+        "NJS_VERSION",
+        "NJS_RELEASE",
+        "ACME_VERSION"
+      ],
+      "id": "dc1abf28d1a61e50051346da50f8f9e1ce6e44ff6cb6ca07721b2cf892da7e6a",
+      "image_id": "sha256:5878d06ae4c83d73285438255f705bb3f9a736f41cd24876ed25bb33faf76c7d",
+      "mounts": [
+        {
+          "destination": "/usr/share/nginx/html",
+          "read_write": false,
+          "source": "/home/AIHUB_USER/wake-audio"
+        }
+      ],
+      "name": "/wakeweb",
+      "pid": 3687851,
+      "ports": {
+        "80/tcp": [
+          {
+            "HostIp": "",
+            "HostPort": "8787"
+          }
+        ]
+      },
+      "running": true,
+      "started_at": "2026-02-05T04:31:08.663321198Z"
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "uvicorn",
+        "recovery_media:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8787"
+      ],
+      "configured_image": "dashboard-gen-runner:reliability-20261101.2",
+      "entrypoint": null,
+      "environment_keys_only": [
+        "GPU_RUNNER_WAIT_SECONDS",
+        "FRAME_TOOLS_DIR",
+        "GPU_RUNNER_TOKEN",
+        "WEATHER_ENTITY",
+        "EPD_ROTATE_CW",
+        "TODO_ENTITY",
+        "GPU_RUNNER_WALLPAPER_TARGET",
+        "EPD_PUSH_ENABLED",
+        "GPU_RUNNER_URL",
+        "EPD_PUSH_FAIL_HARD",
+        "COMFY_WORKFLOW_FILE",
+        "GPU_RUNNER_OLLAMA_TARGET",
+        "OLLAMA_URL",
+        "COMFY_INPUT_IMAGE",
+        "HA_URL",
+        "GPU_RUNNER_CLIENT_STATE",
+        "EPD_PUSH_URL",
+        "COMFY_URL",
+        "CALENDAR_ENTITY",
+        "AIHUB_MEDIA_RECOVERY_CONFIG",
+        "WORKFLOWS_DIR",
+        "ASSETS_DIR",
+        "RECOVERY_ACK_TOKEN",
+        "OUTPUT_DIR",
+        "OLLAMA_MODEL",
+        "CONTAINER_PORT",
+        "CONTAINER_NAME",
+        "TZ",
+        "HOST_PORT",
+        "HA_TOKEN",
+        "DEBIAN_FRONTEND",
+        "PATH",
+        "LANG",
+        "GPG_KEY",
+        "PYTHON_VERSION",
+        "PYTHON_SHA256",
+        "PYTHONDONTWRITEBYTECODE",
+        "PYTHONUNBUFFERED"
+      ],
+      "id": "9114e44866c55f71c20e86ef162b6a7cad28ae0c67dff848332492c44b34358b",
+      "image_id": "sha256:e78445068bed01eecf53b6e052a0fe16eb60db19f462c350e88ca7fcc372cdd1",
+      "mounts": [
+        {
+          "destination": "/app/workflows",
+          "read_write": false,
+          "source": "/opt/dashboard-gen/workflows"
+        },
+        {
+          "destination": "/assets",
+          "read_write": false,
+          "source": "/opt/dashboard-gen/assets"
+        },
+        {
+          "destination": "/frame-tools",
+          "read_write": false,
+          "source": "/opt/frame-tools"
+        },
+        {
+          "destination": "/var/lib/dashboard-gpu-client",
+          "read_write": true,
+          "source": "/home/AIHUB_USER/dashboard-gpu-client-state"
+        },
+        {
+          "destination": "/run/aihub-recovery",
+          "read_write": false,
+          "source": "/opt/dashboard-gen/app/.aihub-recovery-20261109.1"
+        },
+        {
+          "destination": "/app",
+          "read_write": true,
+          "source": "/opt/dashboard-gen/app"
+        },
+        {
+          "destination": "/out",
+          "read_write": true,
+          "source": "/opt/homepage/generated"
+        }
+      ],
+      "name": "/dashboard-gen",
+      "pid": 3294979,
+      "ports": {
+        "8787/tcp": [
+          {
+            "HostIp": "",
+            "HostPort": "8787"
+          }
+        ]
+      },
+      "running": true,
+      "started_at": "2026-11-10T17:20:49.040359525Z"
+    }
+  ],
+  "direct_clients": [
+    {
+      "command": [
+        "bash",
+        "start.sh"
+      ],
+      "configured_image": "ghcr.io/open-webui/open-webui:main",
+      "entrypoint": null,
+      "environment_keys_only": [
+        "OLLAMA_BASE_URL",
+        "PATH",
+        "LANG",
+        "GPG_KEY",
+        "PYTHON_VERSION",
+        "PYTHON_SHA256",
+        "ENV",
+        "PORT",
+        "USE_OLLAMA_DOCKER",
+        "USE_CUDA_DOCKER",
+        "USE_SLIM_DOCKER",
+        "USE_CUDA_DOCKER_VER",
+        "USE_EMBEDDING_MODEL_DOCKER",
+        "USE_RERANKING_MODEL_DOCKER",
+        "OPENAI_API_BASE_URL",
+        "OPENAI_API_KEY",
+        "WEBUI_SECRET_KEY",
+        "SCARF_NO_ANALYTICS",
+        "DO_NOT_TRACK",
+        "ANONYMIZED_TELEMETRY",
+        "WHISPER_MODEL",
+        "WHISPER_MODEL_DIR",
+        "RAG_EMBEDDING_MODEL",
+        "RAG_RERANKING_MODEL",
+        "SENTENCE_TRANSFORMERS_HOME",
+        "TIKTOKEN_ENCODING_NAME",
+        "TIKTOKEN_CACHE_DIR",
+        "HF_HOME",
+        "HOME",
+        "WEBUI_BUILD_VERSION",
+        "DOCKER"
+      ],
+      "id": "8dcb6f603c9c32eb60c73d757e3eacf3c62169d4f0657a0ca4694712a68c982d",
+      "image_id": "sha256:9173df40b9879b99cd5332d38ec966973f8c0ffb77dbafb2ec96caea2548a8d3",
+      "mounts": [
+        {
+          "destination": "/app/backend/data",
+          "read_write": true,
+          "source": "/var/lib/docker/volumes/ollama_open-webui/_data"
+        }
+      ],
+      "name": "/open-webui",
+      "ollama_route": [
+        "OLLAMA_BASE_URL=http://ollama:11434"
+      ],
+      "pid": 2370,
+      "ports": {
+        "8080/tcp": [
+          {
+            "HostIp": "",
+            "HostPort": "3000"
+          }
+        ]
+      },
+      "running": true,
+      "started_at": "2026-10-30T19:50:39.087916528Z"
+    },
+    {
+      "command": null,
+      "configured_image": "mintplexlabs/anythingllm:latest",
+      "entrypoint": [
+        "/bin/bash",
+        "/usr/local/bin/docker-entrypoint.sh"
+      ],
+      "environment_keys_only": [
+        "STORAGE_DIR",
+        "PATH",
+        "PUPPETEER_DOWNLOAD_BASE_URL",
+        "NODE_ENV",
+        "ANYTHING_LLM_RUNTIME",
+        "DEPLOYMENT_VERSION"
+      ],
+      "id": "3be643f2920326e7647f88db8f117b0faf5893ad12f58baa62fcaebafa0119b6",
+      "image_id": "sha256:41ca9152d9f104b483a87026d3205c62d76439aed1a0666770c774f61b25e9a7",
+      "mounts": [
+        {
+          "destination": "/app/server/storage",
+          "read_write": true,
+          "source": "/opt/anythingllm/storage"
+        }
+      ],
+      "name": "/anythingllm",
+      "ollama_route": [],
+      "pid": 2366,
+      "ports": {
+        "3001/tcp": [
+          {
+            "HostIp": "",
+            "HostPort": "3001"
+          }
+        ]
+      },
+      "running": true,
+      "started_at": "2026-10-30T19:50:39.090065931Z"
+    }
+  ],
+  "effective": {
+    "at": "2026-11-11T14:50:36.783853+00:00",
+    "effective_scope": "3285f2d1390ccf4439495b8bbcf2e57107e453ef8252543da24dc667b04e8a4c",
+    "gate": true,
+    "production_mutations": 0,
+    "scope_consumers": {
+      "/home/AIHUB_USER/.local/state/aihub-gpu-runner/music-cleanup-permit.json": {
+        "classification": "disabled historical validation permit; not active authority",
+        "enabled": false,
+        "scope": "9188655172531ce9cc530f967f1611f3fa6c4009b830e2a80a7b1723705c02d9",
+        "sha256": "7d6bbd919779b5ed286d4459472018e6aae3c13b9d94a9a681054eff9867134c"
+      },
+      "/home/AIHUB_USER/.local/state/aihub-gpu-runner/ownership.json": {
+        "scope": "3285f2d1390ccf4439495b8bbcf2e57107e453ef8252543da24dc667b04e8a4c",
+        "sha256": "4f3f5129206bb74d3af8f8d39e1733ab3fbd9981be701a5bbbe12659ec460122"
+      },
+      "/opt/aihub-music-cleanup/manual-20261109.2/settings/config.json": {
+        "scope": "3285f2d1390ccf4439495b8bbcf2e57107e453ef8252543da24dc667b04e8a4c",
+        "sha256": "f1b36eb9668c9cbf58314f12db3c82714bad73e6b2cb601c5e44e39c6acb381c"
+      }
+    },
+    "targets": {
+      "meeting-dual": {
+        "acquisition_timeout": 3600,
+        "cleanup_timeout": 60,
+        "execution_timeout": 1800,
+        "kind": "ollama",
+        "lifecycle": "always_on",
+        "resources": [
+          "gpu0",
+          "gpu1"
+        ],
+        "shutdown_timeout": 60,
+        "startup_timeout": 60
+      },
+      "meeting-dual-ha": {
+        "acquisition_timeout": 3600,
+        "cleanup_timeout": 60,
+        "execution_timeout": 1800,
+        "kind": "ollama",
+        "lifecycle": "always_on",
+        "resources": [
+          "gpu0",
+          "gpu1"
+        ],
+        "shutdown_timeout": 60,
+        "startup_timeout": 60
+      },
+      "music": {
+        "acquisition_timeout": 3600,
+        "cleanup_timeout": 60,
+        "execution_timeout": 1800,
+        "kind": "comfy",
+        "lifecycle": "always_on",
+        "resources": [
+          "gpu0"
+        ],
+        "shutdown_timeout": 60,
+        "startup_timeout": 60
+      },
+      "ollama": {
+        "acquisition_timeout": 3600,
+        "cleanup_timeout": 60,
+        "execution_timeout": 1800,
+        "kind": "ollama",
+        "lifecycle": "always_on",
+        "resources": [
+          "gpu1"
+        ],
+        "shutdown_timeout": 60,
+        "startup_timeout": 60
+      },
+      "wallpaper": {
+        "acquisition_timeout": 3600,
+        "cleanup_timeout": 60,
+        "execution_timeout": 900,
+        "kind": "comfy",
+        "lifecycle": "on_demand",
+        "resources": [
+          "gpu0",
+          "gpu1"
+        ],
+        "shutdown_timeout": 60,
+        "startup_timeout": 120
+      }
+    },
+    "templates": {
+      "/home/AIHUB_USER/.config/aihub-gpu-runner/workflows/picture_api_gpu1_conditioning.json": "c0cf474440c88d499d6c1e6d7a07cede7e056407814d428b9e62ff14129dd0fc",
+      "/home/AIHUB_USER/.config/aihub-gpu-runner/workflows/wakeup_api.json": "ef4c88bb1b3f13d88fc67a210e7d47127f354703e061d24597c6cacc3348e781"
+    }
+  },
+  "host_paths": {
+    "code": 0,
+    "stderr": "",
+    "stdout": "Id=meeting-postprocess.path\nActiveState=active\nSubState=waiting\n\nId=watch-lesson-recordings.path\nActiveState=active\nSubState=waiting\n"
+  },
+  "read_errors": {
+    "/etc/aihub/recovery-helper.json": "[Errno 13] Permission denied: '/etc/aihub/recovery-helper.json'",
+    "/proc/2029149/stack": "[Errno 13] Permission denied: '/proc/2029149/stack'",
+    "/proc/3171382/stack": "[Errno 13] Permission denied",
+    "/proc/3524129/stack": "[Errno 13] Permission denied",
+    "/proc/3645974/cgroup": "[Errno 2] No such file or directory: '/proc/3645974/cgroup'",
+    "/proc/3645974/cmdline": "[Errno 2] No such file or directory: '/proc/3645974/cmdline'",
+    "/proc/3645974/stack": "[Errno 2] No such file or directory: '/proc/3645974/stack'",
+    "/proc/3645974/stat": "[Errno 2] No such file or directory: '/proc/3645974/stat'",
+    "/proc/3645974/status": "[Errno 2] No such file or directory: '/proc/3645974/status'",
+    "/proc/3645974/wchan": "[Errno 2] No such file or directory: '/proc/3645974/wchan'",
+    "proc_links_2029149": "[Errno 13] Permission denied: '/proc/2029149/exe'",
+    "proc_links_3645974": "[Errno 2] No such file or directory: '/proc/3645974/exe'"
+  },
+  "runner_service": {
+    "code": 0,
+    "stderr": "",
+    "stdout": "MainPID=3524129\nNRestarts=0\nExecStart={ path=/opt/aihub-recovery/ha-recovery-completion-20261110.1/venv/bin/python ; argv[]=/opt/aihub-recovery/ha-recovery-completion-20261110.1/venv/bin/python -I -B /opt/aihub-recovery/ollama-recovery-restoration-20261110.1/run_runner.py --config /home/AIHUB_USER/.config/aihub-gpu-runner/config.json serve ; ignore_errors=no ; start_time=[Tue 2026-11-10 23:02:17 EST] ; stop_time=[n/a] ; pid=3524129 ; code=(null) ; status=0/0 }\nActiveState=active\n"
+  },
+  "snapshot_time": "2026-11-11T14:31:12.569561+00:00",
+  "units": {
+    "meeting-postprocess.path": "# /etc/systemd/system/meeting-postprocess.path\n[Unit]\nDescription=Watch for new meeting recordings\n\n[Path]\nPathModified=/home/AIHUB_USER/meeting-pipeline/meeting-recordings/last_recording.txt\n\n[Install]\nWantedBy=multi-user.target\n",
+    "meeting-postprocess.service": "# /etc/systemd/system/meeting-postprocess.service\n[Unit]\nDescription=Run WhisperX on latest meeting recording\n\n[Service]\nType=oneshot\nUser=bojinda\nWorkingDirectory=/home/AIHUB_USER/meeting-pipeline\nExecStart=/bin/bash -lc 'LATEST=\"$(cat /home/AIHUB_USER/meeting-pipeline/meeting-recordings/last_recording.txt)\" && /home/AIHUB_USER/meeting-pipeline/bin/postprocess-meeting.sh \"$LATEST\"'\n",
+    "postprocess-latest-lesson.service": "# /etc/systemd/system/postprocess-latest-lesson.service\n[Unit]\nDescription=Run WhisperX on latest lesson recording\n\n[Service]\nType=oneshot\nUser=bojinda\nWorkingDirectory=/home/AIHUB_USER/meeting-pipeline\nExecStart=/bin/bash -lc 'LATEST=\"$(cat /home/AIHUB_USER/meeting-pipeline/lesson-recordings/last_recording.txt)\" && /home/AIHUB_USER/meeting-pipeline/bin/postprocess-lesson.sh \"$LATEST\"'\nTimeoutStartSec=infinity\n",
+    "runner": "# /etc/systemd/system/aihub-gpu-runner.service\n[Unit]\nDescription=AI-HUB Shared GPU Runner\nWants=network-online.target\nAfter=network-online.target\n\n[Service]\nType=simple\nUser=bojinda\nGroup=bojinda\nWorkingDirectory=/home/AIHUB_USER/aihub-gpu-runner\nEnvironmentFile=/home/AIHUB_USER/.config/aihub-gpu-runner/runner.env\nExecStart=/home/AIHUB_USER/venvs/aihub-gpu-runner/bin/aihub-gpu-runner --config /home/AIHUB_USER/.config/aihub-gpu-runner/config.json serve\nRestart=on-failure\nRestartSec=5\nTimeoutStopSec=30\nUMask=0077\nNoNewPrivileges=true\n\n[Install]\nWantedBy=multi-user.target\n\n# /etc/systemd/system/aihub-gpu-runner.service.d/physical-locks.conf\n# REVIEW ONLY: approved AI-HUB persistent-state mount dependency.\n# Install as a systemd drop-in only during the separately approved migration.\n# Provision 0700 physical-locks directory / 0600 files explicitly; never via startup.\n[Unit]\nRequiresMountsFor=/home/AIHUB_USER/.local/state/aihub-gpu-runner\n\n# /etc/systemd/system/aihub-gpu-runner.service.d/zz-aihub-integrated-recovery.conf\n[Service]\nExecStart=\nExecStart=/opt/aihub-recovery/recovery-integrated-20261109.1/venv/bin/python -I -B -m aihub_gpu_runner --config /home/AIHUB_USER/.config/aihub-gpu-runner/config.json serve\nEnvironment=\"AIHUB_RECOVERY_CONFIG=/etc/aihub/recovery.json\"\nNoNewPrivileges=false\n\n# /etc/systemd/system/aihub-gpu-runner.service.d/zzzz-ollama-probe-compatibility-20261110.1.conf\n[Service]\nExecStart=\nExecStart=/opt/aihub-recovery/ollama-probe-compatibility-20261110.1/venv/bin/python -I -B -m aihub_gpu_runner --config /home/AIHUB_USER/.config/aihub-gpu-runner/config.json serve\n\n# /etc/systemd/system/aihub-gpu-runner.service.d/zzzzz-ha-idle-manual-20261110.1.conf\n[Service]\nExecStart=\nExecStart=/opt/aihub-recovery/ha-idle-manual-20261110.1/venv/bin/python -I -B -m aihub_gpu_runner --config /home/AIHUB_USER/.config/aihub-gpu-runner/config.json serve\n\n# /etc/systemd/system/aihub-gpu-runner.service.d/zzzzzz-ha-recovery-completion-20261110.1.conf\n[Service]\nExecStart=\nExecStart=/opt/aihub-recovery/ha-recovery-completion-20261110.1/venv/bin/python -I -B -m aihub_gpu_runner --config /home/AIHUB_USER/.config/aihub-gpu-runner/config.json serve\n\n# /etc/systemd/system/aihub-gpu-runner.service.d/zzzzzzz-helper-binding-correction-20261110.1.conf\n[Service]\nExecStart=\nExecStart=/opt/aihub-recovery/ha-recovery-completion-20261110.1/venv/bin/python -I -B /opt/aihub-recovery/helper-binding-correction-20261110.1/run_runner.py --config /home/AIHUB_USER/.config/aihub-gpu-runner/config.json serve\n\n# /etc/systemd/system/aihub-gpu-runner.service.d/zzzzzzzz-ollama-recovery-restoration-20261110.1.conf\n[Service]\nExecStart=\nExecStart=/opt/aihub-recovery/ha-recovery-completion-20261110.1/venv/bin/python -I -B /opt/aihub-recovery/ollama-recovery-restoration-20261110.1/run_runner.py --config /home/AIHUB_USER/.config/aihub-gpu-runner/config.json serve\n",
+    "watch-lesson-recordings.path": "# /etc/systemd/system/watch-lesson-recordings.path\n[Unit]\nDescription=Watch for new lesson recordings\n\n[Path]\nPathModified=/home/AIHUB_USER/meeting-pipeline/lesson-recordings/last_recording.txt\nUnit=postprocess-latest-lesson.service\n\n[Install]\nWantedBy=multi-user.target\n"
+  }
+}

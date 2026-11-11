@@ -1,0 +1,34 @@
+[
+  {
+    "relative_private_path": "../ollama-recovery-restoration-20261110/FINAL-ACCEPTANCE.json",
+    "sha256": "c04d701449b2e338e55213f50b97ec23ee7e6a52573ab0fa9c9503c386de96eb"
+  },
+  {
+    "relative_private_path": "../ollama-recovery-restoration-20261110/SECOND-HA-AUDIT-FINAL.json",
+    "sha256": "c7d2c6855febb55857e08365e7ccbdbd61014a1997a5bba0cb5e262c3b5989eb"
+  },
+  {
+    "relative_private_path": "../ollama-recovery-restoration-20261110/FIRST-CENSUS-ZOMBIE-QUALIFICATION.json",
+    "sha256": "dcacf4ee46ecd859d87519093ac96535915092f0c7e5db8fe017849277a0777f"
+  },
+  {
+    "relative_private_path": "../ollama-recovery-restoration-20261110/REAL-PROCESS-QUALIFICATION.json",
+    "sha256": "7eacdd8ad91448483fda1682ddd5d832bdf568c266788bc299994fd8e1a2306c"
+  },
+  {
+    "relative_private_path": "../ollama-recovery-restoration-20261110/DEPLOYMENT-REPORT.txt",
+    "sha256": "cde38af548e545ff89badacfb0c35dde0cad0e3a919e123ef7964f5b619fd6db"
+  },
+  {
+    "relative_private_path": "../ollama-recovery-restoration-20261110/MIDNIGHT-JOBS-READBACK.json",
+    "sha256": "e95350df97e6068002684945f2fbcbaafd8255877e55911659cbc65fe4544631"
+  },
+  {
+    "relative_private_path": "../ollama-recovery-restoration-20261110/TODO-FRESH-SUCCESS.json",
+    "sha256": "1036b273f605201663a934992a9bd26e6bed69e6f5ea63c4b89c20bc6055a4b0"
+  },
+  {
+    "relative_private_path": "../../music-final-rebind-20261109.1/deployment.json",
+    "sha256": "ee5762e4f333d7b923c94b932559e325552bcfc3f9f3a91115fee136412b088d"
+  }
+]

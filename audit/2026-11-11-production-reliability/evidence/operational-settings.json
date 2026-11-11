@@ -1,0 +1,172 @@
+{
+  "accepted_scope": "3285f2d1390ccf4439495b8bbcf2e57107e453ef8252543da24dc667b04e8a4c",
+  "helper_operator_readback": {
+    "gid": 0,
+    "mode": "0o600",
+    "provenance": "interactive operator transcript Nov11; no helper invoked",
+    "scope": "3285f2d1390ccf4439495b8bbcf2e57107e453ef8252543da24dc667b04e8a4c",
+    "sha256": "62eab3641bfdf9b7bdf5635e6c897db41f1009e12a3f93431efdb8dca39c5245",
+    "uid": 0
+  },
+  "music": {
+    "budget_seconds": 5,
+    "enabled": true,
+    "idle_ceiling_mib": 475,
+    "scope": "3285f2d1390ccf4439495b8bbcf2e57107e453ef8252543da24dc667b04e8a4c"
+  },
+  "physical_locks": {
+    "/home/AIHUB_USER/.local/state/aihub-gpu-runner/physical-locks/gpu0.lock": {
+      "device": 2050,
+      "gid": 1000,
+      "inode": 22939626,
+      "mode": "0o600",
+      "uid": 1000
+    },
+    "/home/AIHUB_USER/.local/state/aihub-gpu-runner/physical-locks/gpu1.lock": {
+      "device": 2050,
+      "gid": 1000,
+      "inode": 22939627,
+      "mode": "0o600",
+      "uid": 1000
+    }
+  },
+  "policy_id": "273b3017d367229f3b8ef80841270f3e63727d4a6c08ce55dd3de210d1f68ffc",
+  "policy_limits": {
+    "idle_memory_mb": {
+      "gpu0": 1200,
+      "gpu1": 256
+    },
+    "idle_utilization_pct": 5,
+    "max_temperature_c": 85,
+    "observation_timeout": 90,
+    "samples": 3,
+    "stopped_idle_memory_mb": {
+      "gpu0": 512,
+      "gpu1": 64
+    }
+  },
+  "recovery": {
+    "automatic_no_start": true,
+    "destructive": true,
+    "grace_seconds": 10,
+    "idle_only_manual": true,
+    "target_kind": "docker"
+  },
+  "runner": {
+    "host_stages": {
+      "whisperx": {
+        "cleanup_samples": 3,
+        "cleanup_timeout": 60,
+        "idle_memory_mb": 1200
+      }
+    },
+    "listen_port": 8790,
+    "mandatory_gate": true,
+    "targets": {
+      "meeting-dual": {
+        "acquisition_timeout": null,
+        "cleanup_timeout": null,
+        "execution_timeout": null,
+        "kind": "ollama",
+        "lifecycle": null,
+        "models": [
+          "qwen3.8:27b",
+          "qwen3.6:27b",
+          "gemma4:31b",
+          "gemma4:26b",
+          "qwen2.5:32b",
+          "nomic-embed-text:latest",
+          "qwen3-embedding:0.6b",
+          "qwen2.5-coder:32b",
+          "qwen2.5-coder:14b"
+        ],
+        "resources": [
+          "gpu0",
+          "gpu1"
+        ],
+        "shutdown_timeout": null,
+        "startup_timeout": null
+      },
+      "meeting-dual-ha": {
+        "acquisition_timeout": null,
+        "cleanup_timeout": null,
+        "execution_timeout": null,
+        "kind": "ollama",
+        "lifecycle": null,
+        "models": [
+          "qwen3.8:27b"
+        ],
+        "resources": [
+          "gpu0",
+          "gpu1"
+        ],
+        "shutdown_timeout": null,
+        "startup_timeout": null
+      },
+      "music": {
+        "acquisition_timeout": null,
+        "cleanup_timeout": 60,
+        "execution_timeout": 1800,
+        "kind": "comfy",
+        "lifecycle": null,
+        "models": null,
+        "resources": [
+          "gpu0"
+        ],
+        "shutdown_timeout": null,
+        "startup_timeout": null
+      },
+      "ollama": {
+        "acquisition_timeout": null,
+        "cleanup_timeout": null,
+        "execution_timeout": null,
+        "kind": "ollama",
+        "lifecycle": null,
+        "models": [
+          "qwen3.8:27b",
+          "qwen3.6:27b",
+          "gemma4:31b",
+          "gemma4:26b",
+          "qwen2.5:32b",
+          "nomic-embed-text:latest",
+          "qwen3-embedding:0.6b",
+          "qwen2.5-coder:32b",
+          "qwen2.5-coder:14b"
+        ],
+        "resources": [
+          "gpu1"
+        ],
+        "shutdown_timeout": null,
+        "startup_timeout": null
+      },
+      "wallpaper": {
+        "acquisition_timeout": null,
+        "cleanup_timeout": 60,
+        "execution_timeout": 900,
+        "kind": "comfy",
+        "lifecycle": "on_demand",
+        "models": null,
+        "resources": [
+          "gpu0",
+          "gpu1"
+        ],
+        "shutdown_timeout": 60,
+        "startup_timeout": 120
+      }
+    }
+  },
+  "service_limits": {
+    "music": {
+      "gpu0": 475,
+      "gpu1": 64
+    },
+    "ollama": {
+      "gpu0": 64,
+      "gpu1": 64
+    },
+    "wallpaper": {
+      "gpu0": 500,
+      "gpu1": 256
+    }
+  }
+}

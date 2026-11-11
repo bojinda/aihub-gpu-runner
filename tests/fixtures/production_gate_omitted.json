@@ -1,0 +1,807 @@
+{
+  "config": {
+    "auth_token_env": "AIHUB_GPU_RUNNER_TOKEN",
+    "host_stages": {
+      "whisperx": {
+        "cleanup_samples": 3,
+        "cleanup_timeout": 60,
+        "idle_memory_mb": 1200
+      }
+    },
+    "listen": {
+      "host": "127.0.0.1",
+      "port": 8790
+    },
+    "lock_paths": {
+      "gpu0": "/home/fixture/.local/state/aihub-gpu-runner/physical-locks/gpu0.lock",
+      "gpu1": "/home/fixture/.local/state/aihub-gpu-runner/physical-locks/gpu1.lock"
+    },
+    "state_dir": "/home/fixture/.local/state/aihub-gpu-runner",
+    "targets": {
+      "meeting-dual": {
+        "base_url": "http://127.0.0.1:11434",
+        "kind": "ollama",
+        "max_context": 196608,
+        "mode_switch": {
+          "activation_approval_ref": "R2-D-2026-10-09-separate-live-approval-required",
+          "cleanup_samples": 3,
+          "compose_version": "5.0.0",
+          "container": "ollama",
+          "docker": "/usr/bin/docker",
+          "docker_version": "29.1.3",
+          "dual_compose": "/home/fixture/.config/aihub-gpu-runner/ollama-dual.yml",
+          "dual_sha256": "314c36aa5375eaa1c2be5f38135dec674140833ce91000dc7cdab46662f20318",
+          "gpu1_compose": "/home/fixture/ollama/compose.yml",
+          "gpu1_sha256": "63a4960a6770a01a24f83377465fd34225c0abb61e63fdcffd2465ac8d32728d",
+          "gpu_uuids": {
+            "gpu0": "GPU-f263b627-6c7c-567f-b7ea-eee6d433d970",
+            "gpu1": "GPU-0f78bf75-1faa-508b-a033-7922df718276"
+          },
+          "idle_memory_mb": {
+            "gpu0": 1200,
+            "gpu1": 512
+          },
+          "image_id": "sha256:9685cfc87c0949f3690077f7225517bb53cf762f0db1d26dcb1c2fbdb8629e6f",
+          "nvidia_smi": "/usr/bin/nvidia-smi",
+          "ollama_version": "0.35.1",
+          "preserved_config_sha256": "e9f4e7b60d3c1de4cf1bf8df02196c15ccc9958bce00349d82fc8b0481f21c65",
+          "project": "ollama",
+          "project_directory": "/home/fixture/ollama",
+          "runtime_contract_sha256": "d9b5398c7adc3d574389a7eb8574d39f530635c47559abc7aba2f61fecddf31b",
+          "service": "ollama",
+          "switch_timeout": 90
+        },
+        "models": [
+          "qwen3.8:27b",
+          "qwen3.6:27b",
+          "gemma4:31b",
+          "gemma4:26b",
+          "qwen2.5:32b",
+          "nomic-embed-text:latest",
+          "qwen3-embedding:0.6b",
+          "qwen2.5-coder:32b",
+          "qwen2.5-coder:14b"
+        ],
+        "resources": [
+          "gpu0",
+          "gpu1"
+        ]
+      },
+      "meeting-dual-ha": {
+        "base_url": "http://127.0.0.1:11434",
+        "kind": "ollama",
+        "max_context": 196608,
+        "mode_switch": {
+          "activation_approval_ref": "D070-HA-MEETING-NOTES-STANDING-2026-10-10",
+          "cleanup_samples": 3,
+          "compose_version": "5.0.0",
+          "container": "ollama",
+          "docker": "/usr/bin/docker",
+          "docker_version": "29.1.3",
+          "dual_compose": "/home/fixture/.config/aihub-gpu-runner/ollama-dual.yml",
+          "dual_sha256": "314c36aa5375eaa1c2be5f38135dec674140833ce91000dc7cdab46662f20318",
+          "gpu1_compose": "/home/fixture/ollama/compose.yml",
+          "gpu1_sha256": "63a4960a6770a01a24f83377465fd34225c0abb61e63fdcffd2465ac8d32728d",
+          "gpu_uuids": {
+            "gpu0": "GPU-f263b627-6c7c-567f-b7ea-eee6d433d970",
+            "gpu1": "GPU-0f78bf75-1faa-508b-a033-7922df718276"
+          },
+          "idle_memory_mb": {
+            "gpu0": 1200,
+            "gpu1": 512
+          },
+          "image_id": "sha256:9685cfc87c0949f3690077f7225517bb53cf762f0db1d26dcb1c2fbdb8629e6f",
+          "nvidia_smi": "/usr/bin/nvidia-smi",
+          "ollama_version": "0.35.1",
+          "preserved_config_sha256": "e9f4e7b60d3c1de4cf1bf8df02196c15ccc9958bce00349d82fc8b0481f21c65",
+          "project": "ollama",
+          "project_directory": "/home/fixture/ollama",
+          "runtime_contract_sha256": "d9b5398c7adc3d574389a7eb8574d39f530635c47559abc7aba2f61fecddf31b",
+          "service": "ollama",
+          "switch_timeout": 90
+        },
+        "models": [
+          "qwen3.8:27b"
+        ],
+        "resources": [
+          "gpu0",
+          "gpu1"
+        ]
+      },
+      "music": {
+        "base_url": "http://127.0.0.1:8188",
+        "cleanup_samples": 3,
+        "cleanup_timeout": 60,
+        "execution_timeout": 1800,
+        "idle_memory_mb": 1200,
+        "kind": "comfy",
+        "media_type": "audio/mpeg",
+        "mutations": {
+          "117.value": {
+            "maximum": 600,
+            "minimum": 1,
+            "type": "number"
+          },
+          "225.value": {
+            "max_length": 32768,
+            "type": "string"
+          },
+          "226.value": {
+            "max_length": 32768,
+            "type": "string"
+          },
+          "409.seed": {
+            "maximum": 999999999999999,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "output_key": "audio",
+        "output_node": "104",
+        "resources": [
+          "gpu0"
+        ],
+        "workflow_sha256": "d462759533a7e5a81efdeceff801a7daa6a1fd05dba784e9bc3e0a235f33a229",
+        "workflow_template": "/home/fixture/.config/aihub-gpu-runner/workflows/wakeup_api.json"
+      },
+      "ollama": {
+        "base_url": "http://127.0.0.1:11434",
+        "kind": "ollama",
+        "max_context": 98304,
+        "models": [
+          "qwen3.8:27b",
+          "qwen3.6:27b",
+          "gemma4:31b",
+          "gemma4:26b",
+          "qwen2.5:32b",
+          "nomic-embed-text:latest",
+          "qwen3-embedding:0.6b",
+          "qwen2.5-coder:32b",
+          "qwen2.5-coder:14b"
+        ],
+        "resources": [
+          "gpu1"
+        ]
+      },
+      "wallpaper": {
+        "base_url": "http://127.0.0.1:8190",
+        "cleanup_samples": 3,
+        "cleanup_timeout": 60,
+        "execution_timeout": 900,
+        "idle_memory_mb": 1200,
+        "kind": "comfy",
+        "media_type": "image/png",
+        "mutations": {
+          "35.value": {
+            "maximum": 4096,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "40.aspect_ratio": {
+            "type": "enum",
+            "values": [
+              "custom"
+            ]
+          },
+          "40.background_color": {
+            "type": "enum",
+            "values": [
+              "#F5F5F5"
+            ]
+          },
+          "40.proportional_height": {
+            "maximum": 4096,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "40.proportional_width": {
+            "maximum": 4096,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "7.seed": {
+            "maximum": 9223372036854775807,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "88.value": {
+            "max_length": 32768,
+            "type": "string"
+          },
+          "9.image": {
+            "type": "enum",
+            "values": [
+              "portrait.jpg"
+            ]
+          }
+        },
+        "output_key": "images",
+        "output_node": "36",
+        "resources": [
+          "gpu0",
+          "gpu1"
+        ],
+        "workflow_sha256": "9fe3bc7784753a97e0fb008ab7b0e0fbe3127cbe46da367fc4ef0619b1cc169a",
+        "workflow_template": "/home/fixture/.config/aihub-gpu-runner/workflows/picture_api_gpu1_conditioning.json",
+        "conditioning_idle_memory_mb": 256,
+        "lifecycle": "on_demand",
+        "startup_timeout": 120,
+        "shutdown_timeout": 60
+      }
+    },
+    "workers": 4
+  },
+  "templates": {
+    "meeting-dual": {},
+    "meeting-dual-ha": {},
+    "music": {
+      "18": {
+        "inputs": {
+          "samples": [
+            "120",
+            1
+          ],
+          "vae": [
+            "208",
+            0
+          ]
+        },
+        "class_type": "VAEDecodeAudio",
+        "_meta": {
+          "title": "VAE Decode Audio"
+        }
+      },
+      "78": {
+        "inputs": {
+          "shift": 3,
+          "model": [
+            "356",
+            0
+          ]
+        },
+        "class_type": "ModelSamplingAuraFlow",
+        "_meta": {
+          "title": "ModelSamplingAuraFlow"
+        }
+      },
+      "94": {
+        "inputs": {
+          "tags": [
+            "225",
+            0
+          ],
+          "lyrics": [
+            "226",
+            0
+          ],
+          "seed": [
+            "409",
+            0
+          ],
+          "bpm": [
+            "127",
+            0
+          ],
+          "duration": [
+            "117",
+            0
+          ],
+          "timesignature": "4",
+          "language": "en",
+          "keyscale": "E minor",
+          "generate_audio_codes": true,
+          "cfg_scale": 2,
+          "temperature": 0.8,
+          "top_p": 0.9,
+          "top_k": 0,
+          "min_p": 0,
+          "clip": [
+            "164",
+            0
+          ]
+        },
+        "class_type": "TextEncodeAceStepAudio1.5",
+        "_meta": {
+          "title": "TextEncodeAceStepAudio1.5"
+        }
+      },
+      "98": {
+        "inputs": {
+          "seconds": [
+            "117",
+            0
+          ],
+          "batch_size": 1
+        },
+        "class_type": "EmptyAceStep1.5LatentAudio",
+        "_meta": {
+          "title": "Empty Ace Step 1.5 Latent Audio"
+        }
+      },
+      "104": {
+        "inputs": {
+          "filename_prefix": "audio/AceStep",
+          "quality": "V0",
+          "audioUI": "",
+          "audio": [
+            "18",
+            0
+          ]
+        },
+        "class_type": "SaveAudioMP3",
+        "_meta": {
+          "title": "Save Audio (MP3)"
+        }
+      },
+      "117": {
+        "inputs": {
+          "value": 135
+        },
+        "class_type": "PrimitiveFloat",
+        "_meta": {
+          "title": "Song Length"
+        }
+      },
+      "120": {
+        "inputs": {
+          "noise": [
+            "121",
+            0
+          ],
+          "guider": [
+            "167",
+            0
+          ],
+          "sampler": [
+            "123",
+            0
+          ],
+          "sigmas": [
+            "124",
+            0
+          ],
+          "latent_image": [
+            "98",
+            0
+          ]
+        },
+        "class_type": "SamplerCustomAdvanced",
+        "_meta": {
+          "title": "SamplerCustomAdvanced"
+        }
+      },
+      "121": {
+        "inputs": {
+          "noise_seed": [
+            "409",
+            0
+          ]
+        },
+        "class_type": "RandomNoise",
+        "_meta": {
+          "title": "RandomNoise"
+        }
+      },
+      "123": {
+        "inputs": {
+          "sampler_name": "euler"
+        },
+        "class_type": "KSamplerSelect",
+        "_meta": {
+          "title": "KSamplerSelect"
+        }
+      },
+      "124": {
+        "inputs": {
+          "scheduler": "simple",
+          "steps": [
+            "368",
+            0
+          ],
+          "denoise": 1,
+          "model": [
+            "78",
+            0
+          ]
+        },
+        "class_type": "BasicScheduler",
+        "_meta": {
+          "title": "BasicScheduler"
+        }
+      },
+      "127": {
+        "inputs": {
+          "value": 85
+        },
+        "class_type": "PrimitiveInt",
+        "_meta": {
+          "title": "BPM"
+        }
+      },
+      "163": {
+        "inputs": {
+          "unet_name": "acestep_v1.5_xl_turbo_bf16.safetensors",
+          "weight_dtype": "default"
+        },
+        "class_type": "UNETLoader",
+        "_meta": {
+          "title": "Load Diffusion Model"
+        }
+      },
+      "164": {
+        "inputs": {
+          "clip_name1": "qwen_0.6b_ace15.safetensors",
+          "clip_name2": "qwen_4b_ace15.safetensors",
+          "type": "ace",
+          "device": "default"
+        },
+        "class_type": "DualCLIPLoader",
+        "_meta": {
+          "title": "DualCLIPLoader"
+        }
+      },
+      "167": {
+        "inputs": {
+          "cfg": [
+            "362",
+            0
+          ],
+          "model": [
+            "78",
+            0
+          ],
+          "positive": [
+            "94",
+            0
+          ],
+          "negative": [
+            "216",
+            0
+          ]
+        },
+        "class_type": "CFGGuider",
+        "_meta": {
+          "title": "CFG Guider"
+        }
+      },
+      "208": {
+        "inputs": {
+          "vae_name": "ace_1.5_vae.safetensors"
+        },
+        "class_type": "VAELoader",
+        "_meta": {
+          "title": "Load VAE"
+        }
+      },
+      "216": {
+        "inputs": {
+          "conditioning": [
+            "94",
+            0
+          ]
+        },
+        "class_type": "ConditioningZeroOut",
+        "_meta": {
+          "title": "ConditioningZeroOut"
+        }
+      },
+      "225": {
+        "inputs": {
+          "value": "{genre}"
+        },
+        "class_type": "PrimitiveStringMultiline",
+        "_meta": {
+          "title": "Song Tags"
+        }
+      },
+      "226": {
+        "inputs": {
+          "value": "{prompt}"
+        },
+        "class_type": "PrimitiveStringMultiline",
+        "_meta": {
+          "title": "Song Lyrics"
+        }
+      },
+      "356": {
+        "inputs": {
+          "eta": 0.7,
+          "norm_threshold": 2.5,
+          "momentum": -0.75,
+          "model": [
+            "163",
+            0
+          ]
+        },
+        "class_type": "APG",
+        "_meta": {
+          "title": "Adaptive Projected Guidance"
+        }
+      },
+      "362": {
+        "inputs": {
+          "value": 1
+        },
+        "class_type": "PrimitiveFloat",
+        "_meta": {
+          "title": "CFG"
+        }
+      },
+      "368": {
+        "inputs": {
+          "value": 8
+        },
+        "class_type": "PrimitiveInt",
+        "_meta": {
+          "title": "Steps"
+        }
+      },
+      "409": {
+        "inputs": {
+          "seed": 83867460776813
+        },
+        "class_type": "Seed (rgthree)",
+        "_meta": {
+          "title": "Seed (rgthree)"
+        }
+      },
+      "500": {
+        "inputs": {
+          "anything": [
+            "18",
+            0
+          ],
+          "unload_models": true,
+          "free_memory": true
+        },
+        "class_type": "ForceFreeMemory",
+        "_meta": {
+          "title": "Force Free Memory After Music"
+        }
+      }
+    },
+    "ollama": {},
+    "wallpaper": {
+      "1": {
+        "inputs": {
+          "unet_name": "qwen_image_edit_2511_bf16.safetensors",
+          "weight_dtype": "fp8_e4m3fn"
+        },
+        "class_type": "UNETLoader",
+        "_meta": {
+          "title": "Load Diffusion Model"
+        }
+      },
+      "3": {
+        "inputs": {
+          "clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+          "gpu0_uuid": "GPU-f263b627-6c7c-567f-b7ea-eee6d433d970",
+          "gpu1_uuid": "GPU-0f78bf75-1faa-508b-a033-7922df718276"
+        },
+        "class_type": "AIHubQwenGPU1CLIPLoader",
+        "_meta": {
+          "title": "Load CLIP"
+        }
+      },
+      "4": {
+        "inputs": {
+          "vae_name": "qwen_image_vae.safetensors"
+        },
+        "class_type": "VAELoader",
+        "_meta": {
+          "title": "Load VAE"
+        }
+      },
+      "7": {
+        "inputs": {
+          "positive_prompt": [
+            "88",
+            0
+          ],
+          "negative_prompt": "",
+          "generation_mode": "\u56fe\u751f\u56fe image-to-image",
+          "batch_size": 1,
+          "width": [
+            "40",
+            3
+          ],
+          "height": [
+            "40",
+            4
+          ],
+          "seed": 148299948157986,
+          "steps": 4,
+          "cfg": 1,
+          "sampler_name": "euler",
+          "scheduler": "simple",
+          "denoise": 1,
+          "auraflow_shift": 3,
+          "cfg_norm_strength": 1,
+          "enable_clean_gpu_memory": true,
+          "enable_clean_cpu_memory_after_finish": true,
+          "enable_sound_notification": false,
+          "auto_save_output_folder": "",
+          "output_filename_prefix": "auto_save",
+          "instruction": "Describe the key features of the input image (color, shape, size, texture, objects, background), then explain how the user's text instruction should alter or modify the image. Generate a new image that meets the user's requirements while maintaining consistency with the original input where appropriate.",
+          "model": [
+            "28",
+            0
+          ],
+          "clip": [
+            "3",
+            0
+          ],
+          "vae": [
+            "4",
+            0
+          ],
+          "image1": [
+            "40",
+            0
+          ]
+        },
+        "class_type": "QwenImageIntegratedKSampler",
+        "_meta": {
+          "title": "\ud83d\udc0b Qwen Image Integrated KSampler - Github:\ufe6bluguoli"
+        }
+      },
+      "9": {
+        "inputs": {
+          "image": "portrait.jpg"
+        },
+        "class_type": "LoadImage",
+        "_meta": {
+          "title": "Load Image1"
+        }
+      },
+      "28": {
+        "inputs": {
+          "lora_name": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors",
+          "strength_model": 1,
+          "model": [
+            "1",
+            0
+          ]
+        },
+        "class_type": "LoraLoaderModelOnly",
+        "_meta": {
+          "title": "LoraLoaderModelOnly"
+        }
+      },
+      "35": {
+        "inputs": {
+          "value": 1536
+        },
+        "class_type": "PrimitiveInt",
+        "_meta": {
+          "title": "Output Size Limit (Long Side)"
+        }
+      },
+      "36": {
+        "inputs": {
+          "filename_prefix": "ComfyUI",
+          "images": [
+            "7",
+            0
+          ]
+        },
+        "class_type": "SaveImage",
+        "_meta": {
+          "title": "Save Image"
+        }
+      },
+      "40": {
+        "inputs": {
+          "aspect_ratio": "custom",
+          "proportional_width": 1536,
+          "proportional_height": 768,
+          "fit": "letterbox",
+          "method": "lanczos",
+          "round_to_multiple": "8",
+          "scale_to_side": "longest",
+          "scale_to_length": [
+            "35",
+            0
+          ],
+          "background_color": "#F5F5F5",
+          "image": [
+            "9",
+            0
+          ]
+        },
+        "class_type": "LayerUtility: ImageScaleByAspectRatio V2",
+        "_meta": {
+          "title": "LayerUtility: ImageScaleByAspectRatio V2"
+        }
+      },
+      "88": {
+        "inputs": {
+          "value": "{{PROMPT}}"
+        },
+        "class_type": "PrimitiveStringMultiline",
+        "_meta": {
+          "title": "Prompt"
+        }
+      },
+      "94": {
+        "inputs": {
+          "purge_cache": true,
+          "purge_models": true,
+          "anything": [
+            "7",
+            0
+          ]
+        },
+        "class_type": "LayerUtility: PurgeVRAM",
+        "_meta": {
+          "title": "LayerUtility: Purge VRAM"
+        }
+      }
+    }
+  },
+  "policy": {
+    "allow_force": true,
+    "boot_startup": "stopped_idle",
+    "docker": "/usr/bin/docker",
+    "exclusive_wallpaper_access": true,
+    "gpu_uuids": {
+      "gpu0": "GPU-f263b627-6c7c-567f-b7ea-eee6d433d970",
+      "gpu1": "GPU-0f78bf75-1faa-508b-a033-7922df718276"
+    },
+    "grace_seconds": 10,
+    "idle_memory_mb": {
+      "gpu0": 1200,
+      "gpu1": 256
+    },
+    "idle_utilization_pct": 5,
+    "journalctl": "/usr/bin/journalctl",
+    "max_incidents": 2,
+    "max_temperature_c": 85,
+    "nvidia_smi": "/usr/bin/nvidia-smi",
+    "observation_timeout": 90,
+    "samples": 3,
+    "scope": "7be994ae6a342a0f07f3d27ace9bd7f5030015c44084be5ce0dee94947668a78",
+    "services": {
+      "music": {
+        "contract_sha256": "dea76328dbd62bb2b7bc1983c375097d44ca4bd0fc45d752eb491e8485161aee",
+        "id": "0c7e72bd503f30af697f537bad7ed1b166dd58c85992cde7d4f7fcccf91457a1",
+        "identity_mode": "contract",
+        "idle_memory_mb": {
+          "gpu0": 475,
+          "gpu1": 64
+        },
+        "image": "sha256:ab259fd9e6417e70856256eea79a1252a2c506d7155db85629b148a5cb1dad22",
+        "name": "comfyui-music"
+      },
+      "ollama": {
+        "contract_canonicalization": "env-v1",
+        "contract_sha256": "fb5f370aea29a3d9ae0152d39c3c3323ac59832b56e0d30a6438d24ffc2b10cf",
+        "id": "03db24e6dc90b001f0a73a561fefe64ad767af902c7ebdcedf659a1752a2402c",
+        "identity_mode": "contract",
+        "idle_memory_mb": {
+          "gpu0": 64,
+          "gpu1": 64
+        },
+        "image": "sha256:9685cfc87c0949f3690077f7225517bb53cf762f0db1d26dcb1c2fbdb8629e6f",
+        "name": "ollama"
+      },
+      "wallpaper": {
+        "contract_sha256": "d232755e9b01438a7db842349e5b24aaddb1a630412279810a516cf2901ab08e",
+        "id": "01f5f763513bca51efee85fc3046cb07fbfecb68445abaeef272b59117a0bbf8",
+        "identity_mode": "exact",
+        "idle_memory_mb": {
+          "gpu0": 500,
+          "gpu1": 256
+        },
+        "image": "sha256:3d74c1ef5848708014103371542f6e5edb65c9d7046d122f299ab10aad260cd8",
+        "name": "comfyui-wallpaper"
+      }
+    },
+    "stopped_idle_memory_mb": {
+      "gpu0": 512,
+      "gpu1": 64
+    },
+    "wallpaper": "01f5f763513bca51efee85fc3046cb07fbfecb68445abaeef272b59117a0bbf8",
+    "window_seconds": 3600
+  }
+}

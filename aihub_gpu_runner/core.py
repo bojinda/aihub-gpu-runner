@@ -397,9 +397,9 @@ class Admission:
                     if detail:
                         state["owners"][resource]["detail"] = detail
             self.store.write("ownership.json", state)
-    def recover(self, job_id, evidence):
+    def recover(self, job_id, evidence, *, validate_commit=None, timeout=5, commit_deadline=None):
         # Local administrative path only, never exposed by the request API.
-        with self.mutex.held():
+        with self.mutex.held(timeout):
             state = self.snapshot()
             matches = {r: o for r, o in state["owners"].items() if o["job_id"] == job_id}
             if not matches:
@@ -442,7 +442,10 @@ class Admission:
                 raise ValueError('recovery_job_owner_binding_changed')
             locks = []
             try:
-                for resource in sorted(matches):
+                # Manual idle validation observes both devices. Hold the
+                # original physical locks through that proof and atomic clear.
+                # The trusted callback is internal, never deserialized from API.
+                for resource in sorted(self.lock_paths if validate_commit is not None else matches):
                     path = self.lock_paths[resource]
                     if (not path.is_file() or lock_identity(path.stat()) !=
                             state["lock_identity"][resource]):
@@ -453,6 +456,11 @@ class Admission:
                     locks.append(lock)
                     if lock_identity(os.fstat(lock.fd)) != state["lock_identity"][resource]:
                         raise RecoveryRequired("physical_lock_identity_changed_during_acquisition")
+                if validate_commit is not None:
+                    validate_commit(state, job, evidence)
+                    if self.snapshot() != state or self.store.job(job_id) != job:
+                        raise RecoveryRequired('recovery_state_changed_before_commit')
+                    self._check_physical_identities(state)
                 audit = dict(evidence, recovered_at=timestamp())
                 state.setdefault("recoveries", []).append(audit)
                 # The failed disposition is durable in the same write as clear.
@@ -466,21 +474,26 @@ class Admission:
                         'error_code': 'operator_recovered_no_automatic_resubmission'}
                 for resource in matches:
                     del state["owners"][resource]
+                if commit_deadline is not None and time.monotonic() >= commit_deadline:
+                    raise RecoveryRequired('recovery_deadline_before_commit')
                 self.store.write("ownership.json", state)
             finally:
                 for lock in reversed(locks):
                     lock.close()
 
-    def finalize_recoveries(self, job_id=None):
+    def finalize_recoveries(self, job_id=None, *, timeout=5, checkpoint=None):
         """Idempotent failed-only metadata completion; never backend or lease work."""
-        with NativeLock(self.store.path('jobs.lock')).held():
+        with NativeLock(self.store.path('jobs.lock')).held(timeout):
             state = self.snapshot()
             for lease_id, record in state.get('recovery_dispositions', {}).items():
+                if checkpoint:checkpoint()
                 owner = record.get('owner', {})
                 if job_id is not None and owner.get('job_id') != job_id:
                     continue
-                audits = [a for a in state.get('recoveries', [])
-                          if hashlib.sha256(encode(a)).hexdigest() == record.get('audit_sha256')]
+                audits=[]
+                for a in state.get('recoveries', []):
+                    if checkpoint:checkpoint()
+                    if hashlib.sha256(encode(a)).hexdigest()==record.get('audit_sha256'):audits.append(a)
                 job = self.store.job(owner['job_id'])
                 if (lease_id != owner.get('lease_id') or len(audits) != 1 or
                         record.get('error_code') != 'operator_recovered_no_automatic_resubmission' or
@@ -502,6 +515,7 @@ class Admission:
                 job.update(state='failed', error_code=record['error_code'], updated_at=timestamp())
                 if job.get('host_stage'):
                     job['host_exit_code'] = 70
+                if checkpoint:checkpoint()
                 self.store.put_job(job)
 
 
@@ -523,6 +537,36 @@ class Lease:
         for lock in reversed(self.locks):
             lock.close()
         self.locks = []
+
+
+def retained_completed_ollama(admission, job, owners):
+    """Narrow restart preservation, not recovery eligibility or adoption."""
+    if not hasattr(admission, 'boot_reader'):
+        return False
+    if (job.get('target') != 'ollama' or job.get('resources') != ['gpu1'] or
+            job.get('state') not in ('reconciling', 'cleanup_pending') or
+            job.get('phase') != 'execution_complete' or job.get('completion_verified') is not True or
+            job.get('host_stage') or job.get('dual_gpu_session')):
+        return False
+    owner = owners.get('gpu1', {})
+    keys = ('job_id', 'request_hash', 'lease_id', 'target', 'boot_id')
+    expected = dict(zip(keys, (job.get('request_id'), *(job.get(k) for k in keys[1:]))))
+    if (any(not isinstance(v, str) or not v for v in expected.values()) or
+            any(owner.get(k) != v for k, v in expected.items()) or
+            {r for r, o in owners.items() if o.get('job_id') == job['request_id']} != {'gpu1'}):
+        return False
+    state = admission.snapshot()
+    context = job.get('ollama_cleanup_context', {})
+    policy = state.get('recovery_policy', {})
+    if (owner['boot_id'] != admission.boot_reader() or state.get('verified_boot') != owner['boot_id'] or
+            context.get('binding') != expected or context.get('resources') != ['gpu1'] or
+            context.get('owned_work_completed') is not True or
+            policy.get('policy_id') != hashlib.sha256(encode(policy.get('policy'))).hexdigest() or
+            context.get('policy_id') != policy.get('policy_id') or
+            policy.get('policy', {}).get('scope') != state.get('scope')):
+        return False
+    admission._check_physical_identities(state)
+    return True
 
 
 class Runner:
@@ -569,6 +613,11 @@ class Runner:
                     # Local host stages supervise themselves with the same
                     # Admission journal; API restart cannot rewrite an active stage.
                     if job.get("host_stage") is True:
+                        continue
+                    # A CPU handover does not reinterpret completed retained
+                    # work or erase its precise cause. This is evidence
+                    # preservation only; it grants no execution/release authority.
+                    if retained_completed_ollama(admission, job, owners):
                         continue
                     # Retain an anchorless ready generation as evidence across attended
                     # installation. No startup replay, adoption or release is authorized.
@@ -792,7 +841,8 @@ class Runner:
                 proof = dict(proof, physical_ollama_idle=guard.verify(cleanup_deadline))
             if proof.get("completion_verified") is not True or proof.get("cleanup_verified") is not True:
                 raise CleanupPending("cleanup_not_verified")
-            cleanup_stage = None
+            # Keep diagnostic attribution through publication and durable release.
+            cleanup_stage = 'limits' if guard else None
             if music:
                 music.recheck(cleanup_deadline)
             if guard:
@@ -843,8 +893,11 @@ class Runner:
                 still_owned = lease and any(owners.get(r, {}).get("lease_id") ==
                                              lease.owner["lease_id"] for r in lease.resources)
                 if still_owned:
+                    detail = cleanup_details(exc)
                     self._update(job_id, state="cleanup_pending",
-                                 error_code=music_code or "ownership_release_unconfirmed")
+                                 error_code=(detail['ollama_cleanup_failure']['reason'] if detail else
+                                             music_code or "ownership_release_unconfirmed"),
+                                 publication_warning="ownership_release_unconfirmed", **detail)
                 else:
                     self._update(job_id, publication_warning="ownership_release_sync_unconfirmed")
                 return

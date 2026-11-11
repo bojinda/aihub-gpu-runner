@@ -233,7 +233,7 @@ class EndpointTests(unittest.TestCase):
         for state, error, expected in (
                 ('reconciling', 'supervisor_restart_unresolved_owner', True),
                 ('running', None, False), ('cleanup_pending', None, False),
-                ('reconciling', 'unrelated_error', False),
+                ('reconciling', 'unrelated_error', True),
                 ('failed', 'supervisor_restart_unresolved_owner', False)):
             with self.subTest(state=state, error=error):
                 self.store.put_job({'request_id': 'owned', 'state': state, 'error_code': error})

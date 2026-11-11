@@ -1,0 +1,10 @@
+{
+  "devDependencies": {
+    "fake-indexeddb": "6.2.5"
+  },
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:card": "node --test tests/*card.mjs"
+  }
+}

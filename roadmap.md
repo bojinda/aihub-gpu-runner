@@ -1,298 +1,403 @@
-# AI-HUB GPU Coordination Roadmap
+# AI-HUB — Production Reliability and Repository Restoration Roadmap
 
-**Updated:** 2026-10-09 — core dual-GPU meeting session checkpoint implemented/tested offline, ready for review
-**Status:** Planning document; no implementation, deployment, or publication is authorized by this file alone.
-**Immediate priority:** Get meeting summaries, wallpaper generation, and wake-up music working reliably together.
-**Next priority:** Add a compatible gateway for AnythingLLM, Open WebUI, and **Continue in VS Code**.
+**Revision:** 1.0 — November 11, 2026, America/Toronto  
+**Owner:** Operator  
+**Canonical destination:** `aihub-gpu-runner/roadmap.md` after source reconciliation  
+**Status:** Independent review completed for the critical paths described below; proposed implementation plan. No production deployment, recovery, history rewrite or automatic-authority expansion is authorized by this document alone.
 
-> **First milestone:** Meeting processing, wallpaper generation, and next-song generation cooperate reliably. The operator manually reviews, corrects, and uploads the meeting summary. Gateway work begins after reliable coexistence is accepted and the operator explicitly confirms the manual upload.
+## 0. Decision and definition of success
 
-**Canonical location:** This roadmap is maintained in the runner repository. The shared Automations/roadmap.md points here; do not maintain divergent copies.
-**Mandatory SSH policy:** [../SSH_GUARDRAILS.md](../SSH_GUARDRAILS.md), unchanged.
+Proceed with one coordinated, offline implementation effort based on the pinned audit sources. Another broad evidence-collection exercise is not a prerequisite. Targeted verification against the existing private originals is required for redacted source, deployment bindings, and the exact incident present at deployment time.
 
-## 1. Scope and decisions already made
+The objective is dependable ordinary Music, Wallpaper, ToDo, meeting and lesson operation using the existing GPU runner. This is not Aurora Gateway work, a replacement coordinator, or a new recovery service.
 
-Keep the existing map/reduce meeting workflow as the production route. Whole-meeting evidence extraction remains experimental and disabled; it must not delay this roadmap. Keep existing speaker suggestions and approved corrections, but accept manual name edits in the finished document. Do not add more speaker-identification or within-turn editing features here.
+A release is not accepted because an installer passes, an operator recovers one lease, or one scheduled job succeeds. Acceptance requires:
 
-**Website scope correction:** Website integration is out of scope for all current development and verification work. The operator manually reviews and corrects the summary, copies/pastes it into WordPress, and handles website access and publication checks. Codex must not request or require the website URL, page destination, membership configuration, credentials, or WordPress integration details. Missing website configuration must not block GPU coordination, meeting-pipeline recovery, or their acceptance checks.
+- Ordinary known-safe backend turnover completes cleanup without routine operator rescue.
+- Real unsafe or insufficiently evidenced activity remains contained, with a specific diagnosis and an honest supported recovery path or refusal.
+- Home Assistant preserves the exact uncertain operation through Check, confirmation, polling, lost responses and Verify.
+- Settled application history does not accumulate into a permanent dispatch blocker.
+- The running software is reproducible from maintainable source repositories, not an assortment of unpublished patches and public forensic snapshots.
+- Restored ordinary workloads remain stable through five consecutive eligible production days. This is an operational acceptance target, not a statistical guarantee against every future failure.
 
-The manual-upload milestone is complete only when the operator explicitly confirms it; Codex does not independently verify the website. This correction supersedes earlier website-detail requests and website-verification gaps in R0 reports. Historical reports remain evidence of earlier reviews, not current website acceptance blockers.
+**Do not equate failure of historical attribution with proof that a GPU remains busy forever. Equally, do not equate present idle memory with authority to clear a lease.** Ordinary cleanup and independently authorized retirement need explicit, different proof contracts.
 
-Automatic draft upload is deferred to **W1, the final phase**, after the runner, working pipeline, gateway/client migration, and advanced GPU coordination have been proven stable. Do not design or implement website automation now. Future automation must upload drafts for operator review and never automatically publish.
+## 1. Existing decisions that remain binding
 
-Keep the two ComfyUI containers separate because of their incompatible dependencies. Do not consolidate their Python environments or redesign the workflows. Preserve Home Assistant-facing endpoints, generation prompts, output paths, and the existing wake-up-song playback/promotion behavior.
+Keep the accepted Music GPU0 ceiling at **475 MiB**, its **five-second cleanup budget**, and the existing accepted scope/policy unless an independently demonstrated defect requires a separately approved change. Keep routine Ollama on GPU1, Wallpaper's currently deployed paired-GPU lifecycle, Music/WhisperX integration, and the explicit dual-GPU meeting path. The October roadmap's older GPU0-only Wallpaper description is historical, not the November production contract.
 
-Build one reusable AI-HUB-side GPU runner, provisionally `aihub-gpu-runner`. Applications submit GPU stages; the runner handles admission, execution tracking, cleanup, and recovery. Applications retain their business logic. A small internal job API is needed first; an Ollama-compatible streaming gateway is a later interface to the **same** resource manager, not a second scheduler.
+Keep the two ComfyUI containers and their environments separate. Preserve application models, prompts, stage-specific context settings, Home Assistant endpoints, output paths, song duration/playback/promotion, meeting map/reduce processing, approved speaker corrections, and audio-retention behavior. Keep direct Open WebUI and AnythingLLM functionality. Do not make a gateway, permanent firewall, new queue database, new daemon, or migration of every client a prerequisite for this repair.
 
-**Resource policy for the first milestone:**
+GPU ownership remains with the runner and its existing native authority. Preserve physical lock identities, durable leases, receipts, audits, completion evidence and failed/no-replay dispositions. Do not delete state, replace a lock file, replay historical work, broadly signal processes, reset GPUs, or restore an old journal to obtain a green status.
 
-| Work | Resource | Policy |
+Operator confirmation authorizes an exact recovery mutation; a past confirmation is consumed. An uncertain mutation is followed by Verify of that same operation, not a repeated Recover. Approved local commands are authorization for those commands; do not request redundant chat approval when the operator deliberately executes the approved procedure. Privileged deployment work remains interactive sudo; no sudoers or credential changes.
+
+The legacy automation/cron that directly restarts or controls Wallpaper remains disabled. Preserve current scheduling and delivery settings; do not enable EPD delivery or unrelated publication. No website integration is needed. Gateway and later client migration remain deferred until the production stability gate and any pre-existing operator-confirmation milestones are satisfied.
+
+## 2. Review baseline and evidence boundaries
+
+### 2.1 Pinned sources
+
+| Repository | Audit commit | Relevant review location |
 |---|---|---|
-| WhisperX | GPU0 | Preserve the existing transcription behavior; participate in shared admission/recovery. |
-| Wallpaper ComfyUI | GPU0 | Hold the resource through actual backend completion and required cleanup. |
-| Music ComfyUI | GPU0 | Same resource lock, separate named backend/container. |
-| Routine Ollama, including meeting summaries | GPU1 | Physically restrict the routine Ollama backend to GPU1. |
-| Prompt preparation and file composition | Neither | Do not reserve a GPU for CPU-only work. |
-| Dedicated dual-GPU meeting Ollama | GPU0 + GPU1 | Core next checkpoint R2-D: explicit session target, atomic two-resource reservation, controlled activation and verified GPU1 restoration; offline first. |
+| `bojinda/aihub-gpu-runner` | `30c14171bfc7544ff7cee6d1be4007233561b514` | Current runner, separately captured SDK/helper/plugin/HA variants, historical deltas and reports |
+| `bojinda/meeting-pipeline` | `98da9238f543f823dd1a64acfc9e184f9e3aa6c6` | Deployed `bin/`, controller and tests |
+| `bojinda/dashboard-generator` | `3a05a58fc780c9be84f8afe3819a73941e23643d` | Deployed Media application and SDK |
+| `bojinda/daily-wakeup-song` | `56a90a5db0d6e78475a6f606f72076d99f796396` | Deployed song application, adapter and SDK |
 
-The existing 96K Q8 single-GPU benchmark is useful capacity evidence, not a requirement to allocate 96K to every request. Preserve stage-specific model/context settings. The operator reports Qwen3.8:27b at 192K across both RTX 3090s, entirely GPU-resident. This is a core intended meeting use case, not an optional post-gateway feature. Preserve existing algorithms/prompts/models/context defaults; the benchmark is capacity evidence, not live coordination acceptance. CPU work inside a selected dual summary session retains both reservations until that session ends.
+All use the audit branch `codex/audit-production-reliability-20261111`. Their normal repository roots are **not thereby made current**. The audit README explicitly places production code in isolated snapshot directories. [S1] [S2]
 
-### Not prerequisites for pipeline recovery or the operator's manual upload
+The audit's last reported preservation readback was November 11 at 09:58:39 Toronto. It reported the seasonal Ollama lease still retained, successful ToDo receipts preserved, original locks unchanged, both HA automations ON/inactive and both host paths active/waiting. This is a historical snapshot, not a live readback for a later recovery. Exact operational identities belong in the private deployment packet, not this public-facing roadmap.
 
-- Whole-meeting JSON/evidence redesign, new model comparisons, or more context benchmarks.
-- Perfect speaker identification, biometric matching, or automatic diarization repair.
-- An Ollama-compatible gateway or interactive priority scheduling. Core dual-GPU meeting coordination is separately authorized now; live activation remains separately approved.
-- A queue database, distributed scheduler, new dashboard, or website-upload integration.
+### 2.2 Evidence vocabulary
 
-If producing a usable summary is blocked only by unfinished infrastructure, use a separately approved controlled GPU window and the existing map/reduce workflow. The operator reviews and manually uploads the result. Record the manual-upload milestone only on explicit operator confirmation; the integration milestone still needs its own coexistence tests. No website configuration or verification is required from Codex.
+- **Independent reproduction:** Executed here against the specified published source or explicitly identified source expression, using disposable fixtures.
+- **Source-confirmed:** A control-flow or contract property established from pinned source; not necessarily observed in production.
+- **Audit-reported:** Host observations or prior test results reported by Codex, not repeated here.
+- **Unresolved:** Evidence does not establish the historical cause, actual deployed private bytes, or live outcome.
+- **Proposed requirement:** A design/acceptance requirement of this roadmap, not a claim that the system implements it today.
 
-## 2. Starting point and evidence limits
+### 2.3 What this review did and did not execute
 
-The conversation reports working map/reduce minutes, two separate ComfyUI services, existing AI-HUB-local GPU locks, successful 96K Q8 operation on GPU1, and a successful dual-GPU benchmark. The supplied integration review identified asynchronous completion, cleanup, application concurrency, and crash-recovery gaps. It was a read-only review, not proof that the proposed runner is deployed.
+The independent review traced cleanup, native ownership/recovery, HA control transport/card, Media intent/cache/dispatch, and participating client boundaries. It reproduced two additional failure mechanisms with the exact published Media dispatch module and HA card. Both local source copies were Git-blob verified before execution. Eight Media cases and four card cases completed; these are characterization tests of the broken baseline. A separate three-input source-expression check exposed a published HA network-literal problem.
 
-**Latest operator-reported baseline (2026-10-09):** Runner installed and bootstrapped on AI-HUB, journal ready with no active owners, Ollama restored to GPU1-only. Routine Ollama uses GPU1; WhisperX/wallpaper/music use GPU0. Exact installed runner version/config/scope and hardware facts require fresh approved inspection before deployment. This report supersedes earlier undeployed/dual-exposure assumptions; a GPU1 lock does not constrain Ollama's device selection. Ollama can choose among visible GPUs or spread a model across them. [1]
+The full 297-test runner selection, nine original card cases, framework-dependent Media reporting suite, production GPU behavior, live HA mutation flow and private original captures were **not** independently rerun here. The original audit's passing counts remain attributed to that audit. Do not add the counts together as one qualification result. The vanished historical GPU PID has not been authenticated by any of these local tests.
 
-Record actual application hosts, container versions, deployment mounts, backend addresses, lock paths/permissions, and repository commits privately. Development folder names do not establish where a service runs. Do not copy credentials, real meeting excerpts, participant rosters, or machine-specific GPU identifiers into public examples.
+## 3. Findings and required disposition
 
-**SSH safety gate:** Read `SSH_GUARDRAILS.md` before any remote command. Earlier R0 access blockers were resolved using independently verified pins and permitted public-key authentication. Per-command SSH approval remains required. The operator reports that GPU1-only Ollama restoration passed its after-check and accepted the R1 Linux/WSL checkpoint and authorizes the R2 meeting admission slice with offline/synthetic validation. Codex must not auto-trust host keys, weaken SSH checks, modify `authorized_keys`, or change live services to work around access failures. Trusted access authorizes only the separately approved read-only inventory, not remote changes. If Codex SSH remains blocked, the operator may provide sanitized output from reviewed read-only commands executed through an already trusted console/session; direct Codex SSH is not required to establish R0. Keep target/account configuration private.
+### F01 — Cleanup cannot correlate all ordinary process turnover
 
-Suggested development layout, retaining separate repositories:
+**Evidence:** Source-confirmed; current failure and earlier process ambiguity are audit-reported. `OllamaCleanupGuard.sample()` enumerates service processes before obtaining GPU compute rows. A leased-GPU PID absent from both that census and the original cleanup context is immediately rejected. The final census is never reached on that branch. Previously attested probes receive special treatment; a first-seen zombie has no such proof. [S3] [S4] [S5]
 
-```text
-projects/
-├── meeting-pipeline/
-└── Automations/
-    ├── dashboard-generator/
-    ├── daily-wakeup-song/
-    └── aihub-gpu-runner/       # create during the runner checkpoint
-```
+**Consequence:** Short-lived processes can fall between observations. A valid safety refusal can strand a completed job because the implementation missed the evidence it needs. This does not prove the latest unknown PID was benign, foreign, reused, duplicated, or caused by the driver.
 
-Maintain this canonical roadmap in aihub-gpu-runner. The shared Automations/roadmap.md is a reference to it. Application documentation should reference this authority rather than copying it.
+**Required:** Fix the correlated observation protocol and evidence capture, not just enumeration order or a timeout. Preserve the distinction between an invalid sample that may be re-observed while the same lease stays owned, and a contradictory/unsafe condition that requires refusal. Missing historical executable identity must stay missing. See W2 and D1.
 
-## 3. Checkpoint order
+### F02 — Unknown and duplicate GPU rows are conflated; the failure PID can be lost
 
-| Checkpoint | Deliverable | Status / dependency |
+**Evidence:** Source-confirmed and audit-reported. The same error covers multiple branches. `mark_phase('compute_apps')` resets service/PID before the unknown-row rejection, so `ollama_cleanup_failure.pid` can be null even when a bounded diagnostic event contains the GPU PID. [S3] [S5]
+
+**Required:** Versioned, bounded reasons and observations: unknown PID, duplicate `(physical GPU UUID, PID)` row, birth change, executable mismatch, unavailable observation and stale attested row must be distinguishable. Preserve compatibility with historical coarse codes without inventing facts about them. Do not overwrite old incident records to improve their diagnosis.
+
+### F03 — The ordinary cleanup loop and manual retirement coverage do not line up
+
+**Evidence:** Source-confirmed. The manual `IdleRecovery.ERRORS` list accepts four process-related codes but excludes the current unknown/duplicate class. The automatic worker returns without same-boot Ollama retirement. Increasing the ordinary cleanup deadline cannot help a branch that immediately raises `RecoveryRequired`. [S3] [S6] [S7]
+
+**Required:** A coverage table based on evidence and allowed effects, not an ever-growing list of error-string exceptions. Current-lease retirement needs a reviewed fresh-proof contract and new exact operator approval. A broader manual case is not automatic authority. Automatic retirement after a retained failure remains a separate decision, not a hidden side effect of improving observations.
+
+### F04 — Check Recovery contends with the system's own worker
+
+**Evidence:** Source-confirmed, with audit-reported real contention. Idle Check uses several zero-wait coordination locks, including `recovery.lock`; the recovery worker holds that lock while doing finalization/receipt work. The audit's 3/8 timeout result is a bounded reproduction, not a universal failure rate. [S6] [S7] [S8]
+
+**Required:** Meaningful prerequisite/unsupported verdicts, bounded named busy responses, one end-to-end deadline, and a reviewed lock-order graph. A lock busy result is not an unsafe-GPU verdict. Do not add arbitrary sleeps, increase every timeout, or stop the worker to make Check succeed.
+
+### F05 — Cleanup can pass initial verification and still enter an unhandled final-check failure
+
+**Evidence:** Source-confirmed; not established as the latest incident's cause. `_work()` performs multiple `commit_check()` calls after `verify()`, including around publication and lease release. `commit_check()` converts pending turnover into `ollama_cleanup_no_longer_idle` without a settling loop. `_work()` clears `cleanup_stage` before those checks; earlier late failures can become generic `supervision_or_storage_failure`, while a failure after terminal publication can become `ownership_release_unconfirmed`. Detailed guard diagnostics may survive separately, but primary classification loses the cause. [S3] [S9]
+
+**Required:** Include the whole verify → publish → final check → durable release sequence in the correction and tests. Preserve precise cause and uncertainty phase. A retry must be bounded re-observation of the same owned work, never re-inference, repeated unload, duplicate publication or replay. A final-check improvement must not create a gap between physical evidence and atomic ownership release.
+
+### F06 — Media reconciliation accumulates settled history into a permanent budget failure
+
+**Evidence:** Independently reproduced on the exact published `media_dispatch.py`. `_receipt()` writes separate reconciliation records, but the overridden `reconcile_runner_jobs()` does not use them to skip already-settled historical references and intentionally leaves original records unchanged. Every pass counts those references against a maximum of eight. A ninth historical reference blocks dispatch even when every referenced native job is terminal, released and inactive. Repeated scans do not make progress. A separate 5,000-file cap counts files before filtering by scope. [S10] [S11]
+
+**Required:** A verified completion/progress mechanism for application reconciliation that preserves original records and genuine uncertainty. Completed receipts must stop consuming the active unresolved-work budget. Bound per-pass work without treating growing valid history as permanent failure. Validate receipt identity/content before trusting it; continue checking current native ownership. Test restart/crash recovery and a workload well above eight recovered historical jobs and 5,000 ordinary records. Merely raising the constants is not a fix.
+
+This is a newly found latent defect. The audit does not show that the live system has already crossed either threshold. It is not the explanation for the currently reported retained GPU1 owner.
+
+### F07 — HA can lose the operation it must Verify
+
+**Evidence:** Independently reproduced on the exact published card. `recover()` stores the newly confirmed operation ID, but `refresh()` unconditionally replaces it with `status.attempt.id`. An older successful attempt returned during/after a lost mutation response can replace the new ID; Verify then targets the old operation. The original lost-response test always changes status to the new attempt, leaving this case uncovered. [S12] [S13]
+
+**Required:** Separate the pending locally confirmed operation from historical server-display state. Pin the exact operation and binding through polling, delayed responses, transport loss and reload/reconnect handling. A stale or unrelated attempt may be displayed as history; it must not satisfy or replace pending verification. Match returned identity/effect/receipt before declaring recovery complete.
+
+The card also permits another Recover action after transport uncertainty because `busy` is reset and no persistent uncertain-operation state disables fresh mutation. A synthetic always-eligible server reproduced a second POST. This proves a frontend retry-control gap, **not duplicate native lease retirement**; server protections remain independently necessary. The desired UI state is Verify-only until the pending attempt has a definitive, matching disposition.
+
+### F08 — Audit source is not a deployable canonical baseline
+
+**Evidence:** Source-confirmed. The normal roots/defaults remain separate from snapshots; several legitimate runtime SDK/helper variants coexist. The public HA `Bridge` snapshot contains `192.0.2.0/16` in an IP-network allowlist. Python rejects that network literal under the default strict parser. The independent expression check reproduced the exception. [S2] [S14]
+
+**Required:** Recover original production bytes from the private manifest-backed captures where publication transformed code. Treat the malformed public literal as a snapshot/reconstruction issue unless private originals establish otherwise. Do not assert it broke deployed HA, and do not silently replace it with a guessed literal. Promote maintainable source into ordinary trees, with explicit mapping and tests for each semantic restoration. Public reports, placeholder paths and examples are not installer input.
+
+### F09 — History-size work and nested snapshots need measured budgets
+
+**Evidence:** Source-confirmed scaling concern; exact contribution to the current timeout is unresolved. Worker finalization traverses durable receipts, and idle proof snapshots enumerate jobs and hash result files. Whole-state/history reads also occur in control/status paths. The audit reports 1,797 jobs and earlier large-journal startup delays. This supports testing history-size sensitivity, not a claim that every timeout is caused by journal size. [S6] [S7] [S8] [S15]
+
+**Required:** Measure lock hold times, check latency and scan progress with production-shaped histories and larger fixtures. Use validated incremental state/receipts where justified. Preserve crash recovery and complete historical integrity. No journal deletion, truncation or blind compaction.
+
+### F10 — Deployment acceptance covered components more reliably than the complete installed path
+
+**Evidence:** Audit-reported historical omissions of the mandatory gate, helper/Music binding, and coordination-lock provisioning; source variants and actual entrypoints are documented separately. Framework-dependent Media reporting tests were not initialized in the reported environment. [S2] [S5] [S16]
+
+**Required:** One private release matrix covering runner, import launcher, host SDK, helper wheel, backend hooks/plugins, Media SDK/app, HA bridge/card and settings. Validate the actual `recovery_media:app` entrypoint and installed package paths. Production-equivalent framework tests must run in a disposable environment with dependencies installed, not be reclassified as optional successes.
+
+### F11 — Cooperative client boundaries must be stated honestly
+
+**Evidence:** Audit-reported direct Ollama clients remain present; current queues and connections cannot reconstruct whether one competed with the historical job. The meeting wrapper and Music adapter intentionally use shared admission instead of independent locks. [S1] [S5] [S17] [S18]
+
+**Required:** Preserve these clients and the cooperative operating model. For a recovery window, document which existing mechanism excludes/drains relevant producers through the final authority call. Do not claim a cooperative permit is a host-enforced perimeter for bypass clients. Do not turn this issue into a permanent firewall or Gateway prerequisite. Any stronger assumption needed for an automatic policy is an explicit decision.
+
+### F12 — The ToDo fix and Music limit are not demonstrated causes of this incident
+
+**Evidence:** Audit-reported successful fresh November 11 ToDo formatting and later cache reuse, with the successful receipt still present in the later audit; current ToDo intent is not reported pending. Source separates standalone identity/cache from Wallpaper's retained-owner dispatch guard. No causal evidence implicates the accepted Music limit. [S5] [S10] [S19]
+
+**Required:** Preserve ToDo UUID intent, terminal receipts, request/date validation and cache behavior. Fix F06 in Media dispatch without reopening the old ToDo design or clearing caches. Test cold restart, changed inputs, date rollover, invalid output and pending-outcome preservation. Do not claim the whole system reliable merely because formatting/cache succeeds once.
+
+## 4. Decisions to freeze before candidate implementation
+
+### D1 — Evidence sufficient for ordinary release versus manual retirement
+
+Write a short contract table using the existing architecture:
+
+| Case | Ordinary behavior | Retirement policy |
 |---|---|---|
-| R0 — Recovery baseline | Known production route, verified GPU placement, deployment/recovery notes | Operator accepted GPU1 restoration after-check and authorized transition to R1; other live validation is not inferred |
-| R1 — Minimal shared runner | Reusable backend adapters, job tracking, admission and safe resource handoff | Offline implementation and Linux/WSL checkpoint accepted for continued offline development; not deployed |
-| R2 — Integrate existing workloads | Wallpaper, music, and meeting/lesson GPU stages cooperate | **Current: music adapter slice only; meeting/dashboard accepted offline; stop for review after music** |
-| R3 — End-to-end validation and operator confirmation | Reliable coexistence and usable meeting outputs; operator confirms manual upload | **Required gateway milestone gate** |
-| G1 — Gateway implementation | Compatible interactive Ollama interface using the same coordinator | After reliable coexistence is accepted and the operator explicitly confirms manual upload |
-| G2 — Client migration | AnythingLLM, Open WebUI, and Continue validated individually | After G1 |
-| A1 — Advanced GPU coordination stabilization | Advanced coordination proven stable under separately approved scope | After G2; operator acceptance required |
-| R2-D — Core dual-GPU meeting session | Atomic two-resource session, controlled CDI activation, verified GPU1 restoration and journal-preserving scope transition | Next checkpoint; offline implementation/testing only, then operator review and separate live approval |
-| W1 — Automatic website draft upload | Drafts uploaded for operator review; no automatic publication | **Final phase only**, after runner, pipeline, gateway/client migration, and advanced coordination are accepted as stable; approved D1 work must be stable or explicitly deferred |
+| Exact previously authenticated probe, same lifetime, positive exit, fresh stable idle | May finish the same owned cleanup under existing authority | No manual recovery should normally be needed |
+| New process still observable with complete trusted identity | Discard contaminated sample; obtain complete fresh proof within a bounded budget | No inferred trust from names/argv alone |
+| Unknown compute or first-seen zombie with no trusted pre-exit identity | Do not accept that sample as a benign probe or successful cleanup | Consider independently proven present quiescence under an expressly reviewed manual contract; retain historical uncertainty |
+| Still-active unknown computation, identity contradiction, changed generation, driver fault, inconsistent durable state | Refuse and retain ownership | No automatic release; exact blocker/authorized containment path |
+| Lost response after a mutation may have begun | Keep the same operation and current fences | Verify-only; no new mutation attempt |
 
-A passing test suite is necessary, but does not replace live workflow acceptance or the operator's explicit manual-upload confirmation for the gateway gate. Codex performs no website verification for that confirmation. Website configuration cannot block R0–R3 GPU/pipeline development or verification. Do not treat an earlier review's commit hashes as the current deployment state.
+Sequential polling cannot guarantee that it observes the executable of every arbitrarily short-lived process. A correction that merely polls faster or reverses query order does not close the first-observation gap. Choose a supported trusted-lifetime evidence mechanism already feasible in the installed environment, or explicitly preserve the remaining gap and use an independently reviewed retirement contract. Do not prescribe an unqualified privileged tracing subsystem just to satisfy the roadmap.
 
-## 4. R0 — Recover a safe production baseline
+A fresh-proof manual retirement must prove its own safety; it does not retroactively prove the unknown process was harmless. The exact current job can remain failed/no-replay even if new work is later allowed. Unknown historical identity is a reason to preserve uncertainty, not automatically an eternal ban on a properly authorized future state transition.
 
-**Objective:** Be able to generate a usable meeting summary now, without depending on experimental synthesis.
+**Authority boundary:** Ordinary bounded cleanup re-observation is not the same as automatic retirement of a retained failed lease. Keep automatic Ollama retirement disabled unless separately approved. If expected routine turnover still frequently needs manual intervention, report unattended acceptance as failed; do not hide that limitation behind a successful manual recovery.
 
-- [ ] Follow `SSH_GUARDRAILS.md`: independently verify SSH host trust before any new direct connection, or obtain operator-supplied read-only live evidence from an already trusted session. Authorize remote inspection separately; do not treat a Codex prompt as a technical read-only account.
+### D2 — Safe deployment when the current lease needs new recovery support
 
-- [ ] Record current branches/commits and tracked local changes; preserve private configuration and existing outputs.
-- [ ] Check active backend work before any container change. With explicit operator approval, restore routine Ollama to GPU1-only if the dual-GPU test configuration remains active.
-- [ ] Verify both ComfyUI containers' GPU0 placement and their existing output/cleanup behavior. Retain Q8/Flash Attention and existing model volumes unless a demonstrated incompatibility requires a change.
-- [ ] Establish the current meeting's source index, approved aliases/corrections, map/reduce settings, and recap preference. Do not use unapproved speaker proposals. Website destination and configuration are not R0 requirements.
-- [ ] Keep audio policy unchanged: successful transcription deletes the recording when configured; the previously agreed failure-recovery behavior remains. Historical work uses transcript indexes, not unavailable audio.
-- [ ] Inventory direct Ollama/ComfyUI/manual clients. Until the gateway exists, keep those callers out of managed test windows; do not claim they are already coordinated.
+Resolve the bootstrap sequence before an operator packet is issued. An installer that insists on owner-free state while only the new code can retire the existing lease creates a circular dependency.
 
-**Exit evidence:** Recorded baseline, verified routine device placement, a known map/reduce invocation, and a rollback configuration. No new inference design is required.
+Preferred review target: a narrowly justified CPU-runner handover with completed/inactive work, immutable preserved ownership/history, original lock identities, startup behavior proved against that retained state, and no new backend action or implicit recovery. A later normal HA confirmation then authorizes the exact supported retirement. This is a proposed deployment capability, not existing permission to restart.
 
-**Rollback:** Restore the recorded configuration only after current backend work has been resolved. Do not erase model volumes, transcripts, or private results.
+If the existing installation already has an admissible exact-state recovery route, use it only with fresh evidence and the operator authorization that actually applies. Do not substitute a terminal command for required HA confirmation, re-run a historical installer, or clear ownership to satisfy an installation precondition. If neither route can be proved, report this exact blocker before production, not after partially installing.
 
-## 5. R1 — Minimal reusable GPU runner
+### D3 — Publication and history remediation
 
-**Objective:** Implement resource coordination once, with small adapters in its callers.
+Ordinary development branches should contain implementation, generic tests, examples and useful technical documentation. Production configurations, incident IDs, raw logs, deployment inventories, private paths/identities, receipts, member content and forensic archives remain private.
 
-**Current authorization:** Implement/test the bounded R2-D dual-GPU meeting
-session offline. All three R2 application adapters are accepted offline; the
-meeting approved-input identity and historical command remain tested software
-requirements, not live acceptance. The operator reports a ready/bootstrapped
-installed runner with no active owners and GPU1-only Ollama. Do not deploy this
-delta, restart services, change GPU configuration or production journal, run
-inference, resume callers, modify cron, commit or push. Preserve current stopped/
-paused callers and both separate running ComfyUI containers. Stop for review.
+Preserve a verified private archive before removing any public material. Assess exposed material and reachable refs. Deleting a directory at the branch tip does not remove prior commits or other copies. History rewrite, force push, branch deletion, visibility changes and credential rotation each need an explicit plan/authorization where applicable. Do not promise erasure from existing clones. If live secrets are actually discovered, surface that immediately and prepare the appropriate rotation/removal action; do not invent a compromise. [E1]
 
+### D4 — One bounded deadline and lock-order design
 
-Preserve the existing map/reduce pipeline, GPU stage boundaries, models, prompts, speakers, recap, audio deletion and HA behavior. The accepted meeting boundary uses shared Admission. The dashboard and music slices use this repository’s reusable job client and CPU output guard; GPU ownership remains exclusively in the existing runner. No second reservation system, preflight/flock gap or nested GPU lock is acceptable. Offline implementation is not live integration acceptance.
+Inventory the existing HA bridge, Media proxy and runner deadlines and ticket lifetime. Design one total request budget with reserve below the shortest transport limit, including coordination waits, proof, final checks and response handling. Do not allocate a full timeout independently to every lock or repeated proof.
 
-**Intentional cron decision (operator, 2026-10-08):** Leave the AI-HUB Docker-restart cron entry disabled indefinitely, until the operator explicitly requests restoration. This supersedes the temporary extension/deadline policy; there is no October 9 deadline or recurring extension requirement. Preserve the original crontab backup and restoration instructions. Do not modify cron or restore it automatically. Evaluate whether GPU wedging improves once coordinated workloads are operational. A future requested restoration still requires the original backup/row, intervening-edit checks and review against active/uncertain owned work.
+Read-only checks may retry bounded observations or return a named busy response. Mutation code must not automatically replay a submitted authority call. A preliminary unsupported/configuration answer may avoid expensive observation, but it cannot mint an eligible ticket without full fresh validation. Record the acquisition order, which locks are released before waiting, and how worker progress is preserved.
 
-Deploy the runner as a supervised service on AI-HUB. Use file-backed job records/results and the existing physical-GPU `flock` files. Add authentication and configured/allowlisted backend targets. Do not accept arbitrary backend URLs, filesystem paths, or shell commands from clients.
+## 5. Work packages and dependency order
 
-### Minimum job contract
+### W0 — Preserve private evidence and establish source authority
 
-A request supplies a stable request ID, named target, and operation payload. The service owns backend submission and remains responsible after the client disconnects. Persist sufficient state before submission to recover an uncertain request.
+**Depends on:** pinned audit sources; access to existing private originals.  
+**Allowed effects:** local files and approved new source branches only; read-only production verification when needed.
 
-The same ID and same payload reconnect to the same job/result. The same ID with a different payload is rejected. This prevents ordinary client retries from duplicating work, but does **not** establish exactly-once backend execution after an ambiguous network failure. Reconcile that failure rather than blindly submitting again.
+Create one private manifest of current source origins, original/published hashes, release/load paths and transformations. Preserve all existing branches and worktrees. Record the actual current incident/scheduling state once; do not replay the audit's historical recovery instructions.
 
-Expose submit, status, and result retrieval. Report waiting, running, reconciling, cleanup-pending, success, failure, or cancellation distinctly. Resource acquisition, backend execution, and client waiting need separate deadlines. Queue order and priority are not guaranteed by `flock`; do not advertise FIFO, preemption, or deadline scheduling in this version.
+Select a legitimate pre-audit source base for each repository. Do not merge or cherry-pick the umbrella audit commits into clean development history. Reconcile the approved source files into ordinary package/app directories, with a per-file record: unchanged, newly represented, restored from transformed snapshot, development-only, or intentionally deferred. Use the correct deployed feature branch for meeting-pipeline rather than assuming `master` is its baseline.
 
-### Backend adapters
+If original source embeds private settings, separate those settings through an explicit, tested configuration change rather than publishing them or substituting executable placeholders. Preserve the original semantics and deployment values privately.
 
-**Ollama:** Own the request and required model cleanup within the protected stage. Keep application prompts, options, and parsing semantics intact. Remove late application-level unload calls that could affect a subsequent owner's work. Model residency and active inference are separate concerns; choose one explicit initial cleanup policy and test it. Warm-model optimization is not a prerequisite. Ollama provides model-retention controls, but request completion and safe handoff still need application-level verification. [1]
+Promote the root runner package and required HA/helper/backend integration sources into sensible existing source/test/deployment locations. Keep multiple deployed SDK generations explicitly mapped. Do not flatten unrelated wheels into one directory or force all consumers onto a new SDK merely to make version numbers match. Prefer tested package dependencies for future builds; changing consumers remains a reviewed compatibility action.
 
-**ComfyUI:** Persist the correct backend and prompt ID; wait for that job's terminal result, not merely an HTTP submission response or the presence of an output file. Retrieve the intended image/audio output and verify required cleanup before release. Check the installed versions' queue/history/error behavior. Existing purge nodes stay, but their configuration alone is not proof of completed cleanup. [2]
+**Gate G0:** A fresh checkout can identify/build/test the intended source without importing `audit/`, `tmp/`, a local candidate tree or an undocumented wheel. Every runtime component has a source origin and any unrepresented bytes are explicit. Snapshot placeholders cannot enter a production build. Public branches contain no forensic dumps or private operational fixtures.
 
-### Non-negotiable recovery boundary
+### W1 — Characterize the baseline and freeze the contract
 
-A local process lock disappears when its last associated descriptor closes; a remote/container job can outlive that process. [3] Therefore:
+**Depends on:** W0.  
+Import suitable generic characterization cases from this packet into normal tests. Replace environment-dependent fixtures with synthetic equivalents without weakening assertions. Run the selected original suites and complete missing Media framework coverage in a disposable dependency-correct environment.
 
-- Persist unresolved resource ownership before backend submission.
-- Make a shared recovery/admission check mandatory for **all participating launchers**, including the meeting helper. A runner-only state file is insufficient.
-- On restart or uncertain backend status, block admission to the affected resource until its old work and cleanup are verified, or an operator-approved backend recovery resolves them.
-- Never infer safe release from a client timeout, elapsed time, an empty model list alone, or a cleanup request returning HTTP success.
-- Never unlink/recreate the active lock files to clear contention. Preserve their shared identity and permissions.
+Add reproduction coverage for F05 as well as F06/F07. Establish which tests demonstrate a baseline defect, which are expected failures, and which are existing safety passes. Freeze D1–D4 and a source-to-runtime compatibility matrix before writing the correction. These are bounded design decisions, not a new architecture proposal.
 
-This may require a small, separately reviewed meeting-helper change. Share the admission implementation or contract; do not create another recovery engine inside each automation.
+**Gate G1:** Reviewable defect inventory, explicit authority changes, a real lock-order/deadline model, and a desired-outcome test matrix. No claim that existing passing safety tests establish recovery liveness.
 
-**Exit evidence:** Offline tests for same-resource exclusion, different-resource overlap, duplicate requests, lost responses, client disconnect, backend failure, cleanup failure, and supervisor crash/restart. Specifically prove an unchanged-looking free OS lock cannot bypass unresolved backend ownership.
+### W2 — Correct observation, diagnostics and final release checks
 
-**Stop condition:** Do not integrate unattended clients until recovery behavior is explicit. A bounded operator-recovery path is acceptable; falsely reporting the resource free is not.
+**Depends on:** G1.  
+**Primary modules:** `ollama_cleanup.py`, `ollama_probe.py`, `ollama_diagnostics.py`, narrowly justified `_work()` error/publication handling.
 
-## 6. R2 — Integrate wallpaper, music, and meeting stages
+Collect correlated process/compute observations with a common deadline and bounded retention. Record enough timestamps and PID-specific facts to distinguish process appearance, disappearance, PID reuse, duplicate rows and metadata failure. Preserve executable, argv, parent birth, process birth, namespace, cgroup and container-generation checks when they are required for trust. A name, apparent command line, low VRAM, missing `/proc` entry or elapsed delay alone is insufficient.
 
-**Objective:** Keep the useful workflows intact while replacing their GPU transport/supervision boundaries.
+When the evidence only invalidates the current sample, retain the same lease, reset stability, and re-observe within the existing bounded cleanup operation. Do not silently promote an unknown process to the trusted probe set. Verify positive exits and fresh accepted stable samples after eligible turnover. Unsafe contradictions remain refusals.
 
-**Accepted first slice (offline only):** Meeting/lesson admission uses the existing shared journal and physical locks atomically. GPU0 remains WhisperX; GPU1 remains normal Ollama; map/reduce is preserved. Acceptance authorizes continued offline development, not live meeting deployment.
+Exercise the same rules at every post-verification boundary. Keep precise failure phase/cause after publication and during release. Do not discard completion/output evidence merely because release is uncertain, and do not falsely mark a saved result as released.
 
-**Accepted dashboard slice (offline only):** Dashboard generation uses named GPU1/GPU0 runner targets and the canonical output guard, preserving HA/image/EPD behavior. Acceptance authorizes continued offline development only.
+If the exact pinned Ollama implementation is needed to understand helper lifetime, inspect that implementation in the existing disposable/private environment. Do not infer that `/api/ps` causes the churn, upgrade Ollama, or alter models without evidence. Record any third-party behavior assumption as such.
 
-**Accepted music slice (offline only):** Lyric/tag generation uses named GPU1,
-releasing it before the separate named GPU0 music target. Terminal completion,
-expected MP3 and calibrated cleanup precede release. Stable client IDs, private
-persistent status, archive/promotion before waits and atomic publication preserve
-the existing song and HA interface. No scheduler/runner redesign is authorized.
+**Gate G2:** Real CPU-process tests plus controlled synthetic GPU-row tests cover all observation windows; full negative safety tests pass; no inference/unload/release replay; final-check races and timeout exhaustion give truthful outcomes. A missing first-observation proof remains explicitly covered rather than forgotten.
 
-**Current checkpoint:** R2-D core dual-GPU meeting session, implemented/tested
-offline and ready for review. See [dual session and deployment steps](docs/dual-meeting-session.md).
-The earlier [R2 deployment proposal](docs/r2-deployment-plan.md) is retained as
-historical planning; its undeployed-runner assumption is superseded by the latest
-operator report. None of this checkpoint's operational steps has executed.
+### W3 — Make existing recovery usable and exact
 
-**Meeting software pre-deployment requirements (implemented/tested offline; review pending):**
+**Depends on:** G1; coordinate with W2 diagnostics.  
+**Primary modules:** `idle_recovery.py`, `recovery_control.py`, `recovery.py`, narrowly justified API/status and native settlement interfaces.
 
-- [x] Stage identity binds selected approved aliases and per-turn corrections,
-  including missing/present state and content. Private snapshots preserve the
-  selected inputs; changed approved inputs cannot reuse old success. Missing
-  approvals remain missing. Explicit missing selections fail closed.
-- [x] Document/test `summarize-existing-meeting.sh`: existing transcript chunk
-  index, runner-managed GPU1 map/reduce, no WhisperX or deleted recording required,
-  preserved recap/redactions, private comparison output outside accepted outputs.
+Implement bounded, named coordination busy results and the reviewed lock order. Separate a supported/unsupported prerequisite decision from expensive proof where safely possible. Measure worker/Check contention using the actual lock implementation. Optimize broad history scans only when measurements justify it; preserve persistent record checks and restart reconstruction.
 
-These checkmarks record offline software evidence, not operator acceptance of this
-correction or a live deployment. Linux: 450 full-suite tests run, 449 passed,
-one optional private-identifier audit skipped; final focused 13 passed; runner
-45 tests/17 subcases passed. Mocked backends/native temporary locks only.
+Implement the approved manual completed/inactive retirement contract, not merely another error string. Bind exact job, request, lease, boot, accepted scope/policy, original locks and container/service generations. Prove absence of competing supervised work, required queue/model state, present process state, driver health and stable physical idle under the agreed producer-exclusion model through the mutation. Include all relevant captured/settling/attested/rejected process evidence; `failure.pid == null` cannot silently turn into "nothing to verify." Legacy sparse evidence requires an explicit supported/refused path.
 
-**Pending deployment gates:** Operator review of these corrections and the proposal;
-approved canonical wheel/SDK installation on AI-HUB and both application hosts;
-shared private admission storage/config/scope and original physical lock identity;
-persistent private client-state mounts; authenticated internal connection and named
-targets; installed-version backend/cleanup and physical placement calibration;
-verified caller exclusion; individually approved windows and live test inputs.
-No offline count closes these gates. Execute no deployment steps until separately
-approved, then stop at each gate: runner → meeting → wallpaper → music → contention.
-Do not resume stopped callers or alter intentionally disabled cron automatically.
+The effect is one failed/no-replay disposition for the selected lease, one durable audit, preserved unrelated history and no backend cleanup/restart/reset. Revalidation must happen at execution. Lost responses enter verification; they cannot trigger another authority invocation. Do not enable a new automatic recovery class as part of this package without D1 authorization.
 
-### R2-D — Core dual-GPU meeting summarization
+**Gate G3:** Exact current-class eligibility can be meaningfully checked under a production-shaped configuration. Busy, unsupported, unsafe, missing evidence and unavailable observation are distinct. Successful/uncertain/failed-before-authority outcomes have deterministic verification behavior and preserve exactly-once mutation semantics.
 
-Dedicated explicit Ollama target: both physical GPUs under one shared Admission
-transaction/lease for the entire existing map/reduce/recap session. Routine GPU1
-Ollama and GPU0 WhisperX/wallpaper/music remain unchanged. No per-model-call
-switching, nested reservation system, new scheduler or meeting algorithm/prompt
-change. The target is local-session-only; routine API callers cannot trigger it.
+### W4 — Repair HA pending-operation handling and Media historical reconciliation
 
-- [x] Explicit trusted dual target/policy, calibrated physical bindings, pinned
-  image/Compose definitions and approval reference; unconfigured targets fail closed.
-- [x] All-or-none original native locks and durable paired owners across every
-  request, model unloading, backend readiness and verified GPU1 restoration.
-- [x] Interrupted switching, unknown model work, cleanup/restoration/persistence
-  failures retain both owners; no automatic replay or restoration of uncertainty.
-- [x] Explicit local operator restoration retains owners; separate exact recovery
-  requires stored original-placement proof. Normal single-GPU contracts preserved.
-- [x] Idle additive scope transition and exact rollback preserve ready/bootstrap,
-  journal/history, jobs/results and physical lock identities; no reset/deletion.
-- [x] Synthetic native Linux contention/interruption/cleanup/restoration/rollback
-  tests and normal meeting/wallpaper/music regressions passed (private evidence).
+**Depends on:** G1; integrate with W3 response contract.  
+**Primary files:** HA card; `media_dispatch.py`; framework/status tests. ToDo formatting logic stays unchanged unless a failing test justifies a targeted change.
 
-Checkmarks are offline software/test evidence only. Before the installed AI-HUB
-runner changes, approve fresh baseline bindings, caller exclusion, measured GPU0/
-GPU1 idle/cleanup ceilings with both ComfyUI contexts, versioned package/config
-delta and transition evidence. Stop idle supervisors/resolve nonfinal jobs before
-the explicit transition; never overwrite current ownership with an old backup.
-Approve live activation/inference/restoration and coexistence tests separately.
-Actual 192K GPU-resident placement must be verified in that approved deployment.
-Gateway, website and experimental whole-meeting extraction do not gate this work.
+For HA, store pending confirmation identity separately from server history. A polling response for an older/different operation cannot overwrite it. Do not re-enable Recover after an uncertain POST simply because the request function returned. Verify addresses the pinned operation; matching definitive evidence is required before clearing the local pending state. Cover reload/reconnection and concurrent tabs with explicit server reconciliation or a safely retained non-secret operation reference; do not persist bearer credentials or reusable approval tokens in browser storage.
 
-The inspected integration points below are starting locations, not permission to rewrite surrounding application logic. Recheck their current signatures before editing.
+For Media, validate and consume reconciliation completion evidence without changing original operation history. Maintain crash-safe progress so an already-settled record is not repeatedly charged against a pending-work cap. Continue rejecting unresolved work and identity conflicts. A missing-job/404 receipt must retain its original no-submission proof rules; do not make historical 404s a permanent exemption from identity checks or new current ownership. Bounds limit one pass and return meaningful progress/busy state; they must not make all future work impossible merely because the archive grows.
 
-| Repository | Initial code surface |
-|---|---|
-| `dashboard-generator` | `app/main.py`: Ollama helpers, `comfy_render_image`, render admission/status; application config and Compose deployment settings. |
-| `daily-wakeup-song` | `app.py`: `ollama_make_tags_and_lyrics`, `comfy_generate_mp3`, `generate_new`, promotion/publication guards; Compose settings. |
-| `meeting-pipeline` | `bin/with-gpu-lock.sh`, meeting/lesson postprocess wrappers, and existing GPU-lock tests. Change only the shared admission/supervision boundary as needed. |
-| `aihub-gpu-runner` | New shared service, backend adapters, recovery policy, small client interface, and focused tests. |
+Keep ToDo successful content cached under its exact input/date semantics, preserve pending intents and terminal receipts, and keep native ownership as a separate prerequisite for Wallpaper. No cache clearing, automatic new ID for an uncertain request, or fallback that bypasses a GPU fence.
 
-### Dashboard generator
+**Gate G4:** Desired-outcome versions of every independent characterization pass. Nine and many more settled historical references admit new work without rereading all of them indefinitely. Genuine unsettled references still block. Stale HA status cannot change the Verify target, and uncertain mutations cannot initiate a second frontend recovery flow.
 
-Route all Ollama helpers, including separately invoked quote/to-do operations, through the shared coordination path. Route ComfyUI submission and completion handling through its adapter. Preserve workflow mutation, seeds, overlays, composition, EPD delivery, fallbacks, and output destinations.
+### W5 — Build and qualify one coherent candidate
 
-Close the reported async admission race: reserve the active render slot before launching background work. Apply equivalent output-generation protection to the synchronous route. Preserve the existing HA-facing endpoints, including `/render`, `/render_async`, and `/render_status`.
+**Depends on:** G0–G4.  
+Build from committed canonical source in a clean environment. Create one private deployment manifest with code commits, artifact hashes, actual entrypoints/import origins, SDK/helper/plugin compatibility, effective settings/schema, existing lock prerequisites, rollback artifacts and schedule restoration requirements.
 
-### Wake-up song
+Separate source reconstruction from behavioral fixes in reviewable commits. Four repositories need maintainable source, but do not redeploy four applications if only the runner, Media reconciliation and HA card need runtime changes. Keep unchanged components byte-identical where practical. Source-only improvements to meeting/song repositories must not silently change their live SDKs or scheduling.
 
-Keep the existing song playable and promote/archive it before waiting for the next generation. `/swap_and_generate` must remain prompt; the background generation stages may wait for GPUs.
+Run real disposable HA Core → actual Media entrypoint → runner control integration, including authentication, confirmation, stale tickets, normal/unsupported/busy responses, lost responses, historical status, exact Verify and restoration. Use real temporary journals/locks and CPU-only process tests; GPU observations can be simulated only where clearly labeled. Import/build tests must not accidentally use the old repository-root package or an audit fixture instead of the candidate wheel.
 
-Route lyrics/tags and ComfyUI through the runner. Prevent overlapping jobs from overwriting the same next-song destination. Publish the new MP3 atomically only after successful retrieval and validation. Preserve genre selection, duration, vocal choices, lyrics fallback, and the separate music container.
+**Gate G5:** Independent cross-service/authority review accepts the complete correction and rollback/retained-state handover. No unresolved test-initialization failure is counted as a pass. One manifest describes the candidate actually to be installed; no late unreviewed source changes.
 
-### Meeting and lesson compatibility
+### W6 — One attended production procedure
 
-Keep HA start/stop interfaces, transcription, chunking, prompts, speaker logic, map/reduce, and export rules unchanged. Integrate GPU stages with the **same admission/recovery policy**, using the existing host wrapper where practical.
+**Depends on:** G5 and fresh operator authorization for the bounded procedure.  
+Record original schedules, host path states, loaded sources, current incident, ownership and backup state. Apply only the temporary exclusions required by the approved contract. Preserve legacy-disabled controls as disabled. Use the D2 handover/recovery sequence; do not improvise an owner-clear workaround.
 
-Preserve GPU0 transcription followed by GPU1 summarization, with CPU-only work outside GPU reservations. There must be exactly one lock owner for each stage: do not nest a runner acquisition inside an existing wrapper that already owns the same resource. Define and test the handoff before adapting call sites.
+Use interactive sudo for privileged steps. Verify the loaded code/settings/prerequisites after installation. Obtain a fresh HA Check for the actual current incident and have the operator confirm its exact effect once. Record the operation ID before the mutation can become uncertain. If any response is uncertain, use only that operation's Verify route. Do not press Emergency to bypass an unsupported idle contract.
 
-For multi-request meeting summarization, retain the existing stage-level behavior unless a small shared adapter is required. Do not rewrite the summarizer into a durable workflow engine. Preserve lesson behavior and model settings while including lesson stages in contention tests.
+Verify one matching audit, one exact lease disposition, no replay and unchanged unrelated jobs/results/locks. Let existing Media reconciliation settle application records correctly; do not edit receipts to make status green. Restore original scheduling states after completion or abort through existing gates; never reopen an unresolved recovery fence merely to make the schedule/status display appear normal. Any required continuing containment must be explicitly reported and handled under the approved abort procedure, not silently left behind.
 
-**Exit evidence:** Each application passes its existing tests plus adapter tests; HA contracts and output paths are unchanged; GPU1 is released before wallpaper/music wait for GPU0. No duplicated supervisors, workflow-node rewrites, or dependency consolidation.
+**Gate G6:** Installation, exact recovery outcome, scheduling restoration and application reconciliation are independently reported. Restoration is not yet soak acceptance.
 
-**Rollback:** Revert the affected application adapter and pause conflicting automated GPU triggers. Never silently bypass the runner after an uncertain submission; manual recovery is required first.
+### W7 — Ordinary-cycle and unattended acceptance
 
-## 7. R3 — Integrated run, human review, and operator confirmation
+**Depends on:** G6.  
+Observe normal eligible schedule cycles rather than forcing production failures. Respect existing presence/time conditions. Require successful full Wallpaper generation with cleanup/release; both fresh and unchanged-input cached ToDo behavior; correct quote/cache classification; normal Music behavior and preserved meeting/lesson integration. Delivery remains in its pre-existing state.
 
-**Objective:** Prove reliable meeting, wallpaper, and music coexistence and produce usable meeting artifacts before beginning gateway work.
+Track five consecutive eligible production days using a small private ledger: expected/observed invocations, output result, owned resources, cleanup/settlement, recovery activity, application reconciliation, source versions and any operational exception. Include enough ordinary workload diversity to exercise the corrected paths; record absent workloads honestly rather than manufacturing production work to fill a table.
 
-Run one controlled integration exercise using approved live-test inputs. Use the existing October transcript for historical summarization; audio is not needed. Use a separate comparison output destination until the operator accepts the draft. Website integration and website verification remain outside Codex's current scope.
+A retained job needing routine manual rescue, duplicate execution, wrong-operation Verify, lost ownership, false success, recurring false attribution refusal or historical-budget dead end fails unattended acceptance. Record outside cooperative-client interference separately and classify it on evidence: do not blame a direct client without proof, and do not call permanent retention acceptable because the client was external. Genuine unsafe conditions may correctly require an operator; their frequency and handling remain visible.
 
-### Acceptance checklist
+**Gate G7:** Five eligible production days meet the recorded operational criteria with no hidden repair/reset/state deletion between samples. Gateway work remains deferred until this gate and existing operator milestones are explicitly accepted.
 
-- [ ] Meeting map/reduce produces usable summary, minutes draft, action items, and QA with normal configured models.
-- [ ] Wallpaper and next-song jobs can be triggered while meeting processing is active; they wait only for resources they need and complete without duplicate backend submissions.
-- [ ] GPU0 jobs serialize; GPU0 and GPU1 stages overlap when compatible. Both automated ComfyUI services remain separately deployed.
-- [ ] Current wake-up audio remains available while generation waits or fails; wallpaper retains its established failure/fallback behavior.
-- [ ] A disconnect/restart exercise demonstrates that uncertain backend work does not cause premature resource reuse. No stranded reservation remains after verified recovery.
-- [ ] The operator reviews substantive accuracy, names, motion outcomes, action ownership, recap separation, and redaction. Manual document edits are acceptable.
-- [ ] Prepare only reviewed member-facing artifacts for operator handoff. Keep private transcripts, QA, suggestions, corrections, redactions, model responses, recordings, and job records out of that handoff.
-- [ ] Record accepted commits/configuration, private test-result locations, and known non-blocking limitations.
+## 6. Required qualification matrix
 
-### Operator-owned manual-upload milestone
+These are minimum scenario families; test names/counts must reflect unique scenarios, not inherited fixture executions presented as new coverage.
 
-The operator manually reviews, corrects, and copies/pastes the approved summary into WordPress, and handles all website access and publication checks. Codex needs no website URL, page destination, membership settings, credentials, integration details, screenshots, or independent access-test evidence. Mark this milestone complete only when the operator explicitly confirms the manual upload.
+| ID | Scenario | Required result |
+|---|---|---|
+| Q-O1 | Existing attested probe exits normally between censuses | Same-lease cleanup converges; no new inference |
+| Q-O2 | New fully observable probe appears between census and GPU query | Contaminated sample discarded; complete trusted correlation required |
+| Q-O3 | First observation already zombie, allowed executable versus unrelated executable | No name-based trust; explicit gap/manual disposition, never false normal success |
+| Q-O4 | Unknown leased-GPU PID never appears in a usable census | PID/timing/reason preserved; no invented ancestry or harmlessness |
+| Q-O5 | Duplicate compute row, stale attested row, PID birth reuse | Distinct truthful classifications; contradiction remains refused |
+| Q-O6 | Executable/argv/parent/cgroup/namespace/container/image mismatch | Refusal preserved, including spoofed names/arguments |
+| Q-O7 | Metadata permission failure, missing process, malformed output, parser truncation | Observation unavailable versus positive exit remain distinct |
+| Q-O8 | Valid turnover during each post-verify/publication/release check | No replay; precise cause; bounded handling; no false released success |
+| Q-O9 | GPU/driver health fault, excess residency, foreign GPU activity | Existing safety refusal preserved |
+| Q-O10 | Cleanup deadline expires | Bounded outcome; exact stage and ownership retained where required |
+| Q-R1 | Automatic worker holds recovery coordination lock | Named bounded busy response or completed Check; no deadlock |
+| Q-R2 | Concurrent Check/Check, Check/status, Check/mutation, worker/caller | Consistent lock ordering, bounded progress, no duplicate authority |
+| Q-R3 | Missing mandatory gate/helper/coordination file or changed scope | Specific refusal before mutation; ordinary unrelated service behavior preserved |
+| Q-R4 | Approved completed/inactive exact lease under fresh proof | One failed/no-replay disposition and audit; only authorized ownership released |
+| Q-R5 | Unknown active compute, competing work, changed binding or replaced lock | Refusal; no cleanup/kill/reset side effect |
+| Q-R6 | Crash before authority intent, after intent, after native commit, before response | Exact durable verification; no second authority call |
+| Q-R7 | Retained-state candidate startup/handover | No implicit owner release/replay; original state and locks remain authoritative |
+| Q-R8 | Growing job/result/receipt history | Measured bounded checks and worker progress without archive deletion |
+| Q-H1 | Lost POST response and older successful status | Pending operation cannot be replaced; Verify exact new operation |
+| Q-H2 | Status arrives while POST is in flight | Same binding retained regardless of response order |
+| Q-H3 | Uncertain response followed by another Recover click | No fresh mutation; Verify-only until matching definitive disposition |
+| Q-H4 | Reload/reconnect, simultaneous card/tabs, token expiry | Recover exact pending context safely; no historical success substitution |
+| Q-H5 | Matching completed/aborted/uncertain response | UI reflects actual effect; no candidate/eligibility/recovery conflation |
+| Q-M1 | Nine-plus historical references with valid terminal receipts | No permanent eight-reference blocker; current readiness still checked |
+| Q-M2 | Above 5,000 ordinary records, old scopes and restart | Bounded progress; no unconditional archive-size outage |
+| Q-M3 | Receipt tampering, identity mismatch, changed record, unresolved native state | Refuse; never treat arbitrary receipt existence as authority |
+| Q-M4 | Crash between receipt write and progress/pointer update | Resume deterministically with originals preserved |
+| Q-M5 | Never-submitted/404 reconciliation | Preserve original bounded absence proof; no silent late submit/replay |
+| Q-T1 | Fresh ToDo, unchanged input cache, cold app restart | Exact valid output; no unnecessary repeated formatting |
+| Q-T2 | Midnight/date rollover and changed task payload | Fresh identity only when prior operation resolved; no stale-date success |
+| Q-T3 | Pending intent and changed input, invalid model response, failed terminal receipt | Honest pending/invalid/failed classifications; no deletion or duplicate submit |
+| Q-I1 | Actual HA → Media → runner route with production-shaped config | All supported actions and credentials/roles work; refusal meanings preserved |
+| Q-I2 | Candidate wheel/import path, helper/plugin/host SDK compatibility | Tested actual bytes, not interpreter name/image tag assumptions |
+| Q-I3 | Redacted executable constants/path fixtures | Restore verified semantics; no placeholder enters runtime package |
+| Q-I4 | Music/Wallpaper/WhisperX/meeting/lesson/client compatibility | Existing behavior and sole runner ownership preserved |
+| Q-I5 | Schedule/host path restoration, complete abort path | Original state restored without overriding unresolved safety gates |
+| Q-L1 | Natural fresh formatting, cache hit and full Wallpaper cycle | Separate live acceptance evidence, correct output and released ownership |
+| Q-L2 | Five eligible production days | No routine manual rescue or hidden intervention; failures remain visible |
 
-### Hard milestone gate
+## 7. Repository layout and release discipline
 
-**Proceed to G1 for Open WebUI, AnythingLLM, and VS Code Continue only after BOTH:**
+Use existing ordinary source layouts: the runner's package/tests, Media's app/tests, meeting bin/controller/tests, and the song application's existing layout. Generic HA integration/card, helper and backend-hook source should have named maintained homes in the appropriate existing repository; the runner is the default home for runner-specific integrations unless current project structure already defines one. Do not introduce a fifth repository merely for this cleanup.
 
-1. Meeting summarization, wallpaper generation, and wake-up music cooperate reliably under the first-stage resource policy, with operator acceptance of the integration results.
-2. The operator explicitly confirms the manual website upload.
+Keep one canonical `roadmap.md` in the runner repository. Companion READMEs point to its accepted revision; they do not carry diverging roadmaps. Integrate this document while preserving the old roadmap's nonconflicting product constraints and deferred milestones. Old October deployment statuses must be clearly superseded, not repeated as current facts.
 
-Tests, a local artifact, or a simulated upload cannot supply the operator's confirmation. Website configuration and Codex website verification are not acceptance requirements. GPU coordination and meeting-pipeline recovery continue independently of website configuration; only the gateway transition waits for the two confirmations above.
+The next development branches should be based on clean, explicitly identified source history, not the audit branch. Keep the audit baseline privately recoverable and document source provenance. Committing a later deletion of `audit/` is not equivalent to preventing its history from entering a clean branch.
 
-**Rollback:** Restore the last working controlled workflow, preserve operator-reviewed meeting artifacts and the previously playable song, and resolve backend ownership before releasing resources. Website actions remain the operator's responsibility.
+Use the normal Git-based path: **Codex → reviewed commit → push → operator pull/deploy**. Do not return to editing production files that never reach the source repository. Public CI tests use synthetic identities and configuration. Private deployment manifests select actual paths, credentials, GPU/container identifiers and scope without placing them in public templates.
 
-## 8. G1/G2 — Interactive gateway, after coexistence and manual-upload confirmation
+Normal publish/merge decisions, public-audit history removal, runtime deployment and exact recovery are distinct approvals. A passed code review does not authorize all four.
+
+## 8. Anti-drift controls and stop rules
+
+G0–G5 are internal checkpoints within one implementation assignment, not six separate operator handoffs. Complete independent read-only/offline work without repeatedly returning individual diagnostic commands. Consolidate genuinely blocked policy decisions; return one candidate for review and one eventual attended procedure.
+
+Every proposed change must reference a finding/requirement ID, the failing baseline test or source evidence, its intended effect and its non-effects. Prefer a small coherent patch set over a succession of production hotfixes; do not promise that the number of changed lines will be one.
+
+Maintain one progress table in this roadmap. Put raw evidence and per-host approvals in the private packet, not a growing family of public reports. New adjacent issues may be recorded, but they are not automatic scope expansion. A newly discovered blocker must state which gate it prevents and the narrow evidence needed to resolve it.
+
+Stop production progression for missing original bytes, unreviewed authority expansion, unresolved lock-order/deadline hazards, unverified current lease/bindings, test-import failures on required paths, ambiguous completed mutation, failed restoration or an unreviewed late package change. Continue safe offline work on independent gates where possible; do not use a blocked production gate as a reason to redesign everything.
+
+Do not claim closure when only a code count, unit-test count, UI label, one recovery, or one ordinary cycle has passed. Report the gate actually passed and the one still blocked.
+
+## 9. Progress ledger — initial state
+
+| Gate | Status | Required evidence |
+|---|---|---|
+| G0 Canonical source/private evidence | Not implemented | Clean source branches, semantic restoration map, package/import provenance |
+| G1 Contracts and failing baseline scenarios | Partially established by this review | D1–D4 frozen, full baseline suite and remaining cases |
+| G2 Cleanup observation/release correction | Not implemented | Complete turnover/negative/final-check coverage |
+| G3 Exact usable recovery | Not implemented for current missing-observation class | Named Check results, exact fresh-proof authority and uncertain verification |
+| G4 HA/Media liveness corrections | Defects independently reproduced; no patch applied | Desired-outcome regressions and framework integration |
+| G5 Coherent release review | Not started | Clean artifacts and installed-path qualification |
+| G6 Attended restoration | Not authorized/executed by this roadmap | Fresh state, exact operator approval, audit/release/restoration proof |
+| G7 Unattended acceptance | Not established | Five eligible production days and workload ledger |
+
+## 10. Sources and provenance
+
+Source links refer to immutable audit commits. They are review references, not deployment instructions. Function names identify the relevant portion where a file is large. Private historical originals remain necessary wherever the manifest records a transformation.
+
+[S1]: https://github.com/bojinda/aihub-gpu-runner/blob/30c14171bfc7544ff7cee6d1be4007233561b514/audit/2026-11-11-production-reliability/ARCHITECTURE.md
+[S2]: https://github.com/bojinda/aihub-gpu-runner/blob/30c14171bfc7544ff7cee6d1be4007233561b514/audit/2026-11-11-production-reliability/SOURCE-DIFF.md
+[S3]: https://github.com/bojinda/aihub-gpu-runner/blob/30c14171bfc7544ff7cee6d1be4007233561b514/audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/ollama_cleanup.py
+[S4]: https://github.com/bojinda/aihub-gpu-runner/blob/30c14171bfc7544ff7cee6d1be4007233561b514/audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/ollama_probe.py
+[S5]: https://github.com/bojinda/aihub-gpu-runner/blob/30c14171bfc7544ff7cee6d1be4007233561b514/audit/2026-11-11-production-reliability/FAILURE-ANALYSIS.md
+[S6]: https://github.com/bojinda/aihub-gpu-runner/blob/30c14171bfc7544ff7cee6d1be4007233561b514/audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/idle_recovery.py
+[S7]: https://github.com/bojinda/aihub-gpu-runner/blob/30c14171bfc7544ff7cee6d1be4007233561b514/audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/recovery.py
+[S8]: https://github.com/bojinda/aihub-gpu-runner/blob/30c14171bfc7544ff7cee6d1be4007233561b514/audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/recovery_control.py
+[S9]: https://github.com/bojinda/aihub-gpu-runner/blob/30c14171bfc7544ff7cee6d1be4007233561b514/audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/core.py
+[S10]: https://github.com/bojinda/dashboard-generator/blob/3a05a58fc780c9be84f8afe3819a73941e23643d/audit/2026-11-11-production-reliability/snapshots/deployed/app/media_dispatch.py
+[S11]: https://github.com/bojinda/dashboard-generator/blob/3a05a58fc780c9be84f8afe3819a73941e23643d/audit/2026-11-11-production-reliability/snapshots/sdk/aihub_gpu_runner/client.py
+[S12]: https://github.com/bojinda/aihub-gpu-runner/blob/30c14171bfc7544ff7cee6d1be4007233561b514/audit/2026-11-11-production-reliability/snapshots/home-assistant/www/aihub-recovery-card.js
+[S13]: https://github.com/bojinda/aihub-gpu-runner/blob/30c14171bfc7544ff7cee6d1be4007233561b514/audit/2026-11-11-production-reliability/qualification/tests/test_idle_card.mjs
+[S14]: https://github.com/bojinda/aihub-gpu-runner/blob/30c14171bfc7544ff7cee6d1be4007233561b514/audit/2026-11-11-production-reliability/snapshots/home-assistant/custom_components/aihub_recovery/bridge.py
+[S15]: https://github.com/bojinda/aihub-gpu-runner/blob/30c14171bfc7544ff7cee6d1be4007233561b514/audit/2026-11-11-production-reliability/snapshots/current/aihub_gpu_runner/native_settlement.py
+[S16]: https://github.com/bojinda/aihub-gpu-runner/blob/30c14171bfc7544ff7cee6d1be4007233561b514/audit/2026-11-11-production-reliability/TEST-RESULTS.md
+[S17]: https://github.com/bojinda/meeting-pipeline/blob/98da9238f543f823dd1a64acfc9e184f9e3aa6c6/audit/2026-11-11-production-reliability/snapshots/deployed/bin/with-gpu-lock.sh
+[S18]: https://github.com/bojinda/daily-wakeup-song/blob/56a90a5db0d6e78475a6f606f72076d99f796396/audit/2026-11-11-production-reliability/snapshots/deployed/gpu_runner.py
+[S19]: https://github.com/bojinda/dashboard-generator/blob/3a05a58fc780c9be84f8afe3819a73941e23643d/audit/2026-11-11-production-reliability/snapshots/deployed/app/standalone_text.py
+[E1]: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository
+
+External reference E1 is used only for GitHub publication/history-removal guidance. Runtime findings above derive from the pinned project sources, audit reports and explicitly described local reproductions.
+
+
+# Preserved long-term requirements
+
+These accepted pre-audit requirements remain deferred. Their historical milestone labels do not replace the G0–G7 reliability gates above. No implementation or deployment follows from this section.
+
+## Deferred gateway milestone â€” Interactive gateway, after coexistence and manual-upload confirmation
 
 **Objective:** Bring interactive clients into the same coordinator without modifying their source code or replacing the automation job API.
 
@@ -314,7 +419,7 @@ On disconnect, cancel queued work where appropriate. Once backend inference has 
 
 **Gateway acceptance:** All configured local generation/embedding paths use the coordinator; streaming and cancellations behave correctly; meeting, wallpaper, and music regression tests still pass. Restrict direct backend access only after migrated paths and administrative recovery access are verified. Do not call the system globally coordinated while bypass paths remain active.
 
-## 9. A1 — Later advanced GPU coordination
+## Deferred advanced coordination â€” Later advanced GPU coordination
 
 Core dual-GPU meeting sessions are now R2-D, before gateway work, and must become
 stable with the normal meeting/wallpaper/music workflows under separately approved
@@ -325,7 +430,7 @@ interactive migrations stabilize, record acceptance of any approved advanced wor
 without changing the accepted core session/admission/recovery behavior. Do not
 reopen experimental whole-meeting extraction or expand this checkpoint.
 
-## 10. W1 — Automatic website draft upload, final phase only
+## Deferred draft-only website upload â€” Automatic website draft upload, final phase only
 
 **Deferred final phase:** Begin only after the GPU runner, working meeting/wallpaper/music pipeline, Ollama gateway and Open WebUI/AnythingLLM/Continue migration, and advanced GPU coordination have been proven stable and accepted by the operator. Core R2-D dual-GPU meeting operation must also have accepted live stability.
 
@@ -333,46 +438,8 @@ Future automation must upload **drafts for operator review only** and must **nev
 
 Do not design, implement, gather website integration requirements, request credentials/access, or perform website verification for W1 now. Its details and validation scope require a separate authorization when this final phase is reached. Earlier manual-upload confirmation authorizes gateway progression, not website automation.
 
-## 11. Codex execution and scope-control rules
 
-At each checkpoint, read this roadmap, report the current repository/branch/status, state the specific files and acceptance tests in scope, and implement only that checkpoint. Stop on unrelated local changes or missing deployment facts; never infer live state from development layout.
 
-For **all SSH or remote actions**, follow `SSH_GUARDRAILS.md` as a mandatory companion policy. Never resolve access errors by relaxing host-key verification or using new credentials/accounts without explicit operator authorization. Remote inspection and live modification are separate approvals.
+# Candidate implementation ledger
 
-Run focused tests during implementation and full affected suites at the checkpoint boundary. Use synthetic public fixtures and mocked backends; perform live HA, Ollama, ComfyUI, SSH, and container operations only with explicit operator authorization. Website development, integration, access/publication checks, and configuration discovery are outside all current phases; the operator handles the website. Preserve actual runtime failure evidence privately before proposing another change.
-
-Return a reviewable diff, test totals, unresolved risks, deployment/rollback steps, and the next gate. Do not commit, push, deploy, rewrite history, or publish merely because a checkpoint has been implemented. Test counts alone are not acceptance evidence for a live workflow.
-
-**Change-control rule:** Before R3 is accepted, a proposed addition must directly support reliable meeting/ComfyUI coexistence or usable meeting outputs for operator review. Otherwise add it to the deferred list. Website work cannot be introduced as a prerequisite or as a current deliverable. Permit safety corrections, not unrelated architecture expansion.
-
-### Acceptance record — update at real checkpoints
-
-| Field | Record |
-|---|---|
-| Current checkpoint | R2-D — core dual-GPU meeting session and journal-preserving scope transition tested offline; stop for review |
-| Last accepted checkpoint | R2 music adapter accepted for continued offline development; meeting/dashboard accepted offline; no live authorization |
-| Runner deployed version | Operator reports installed/bootstrapped AI-HUB runner, ready with no owners; exact version/scope pending approved inspection; dual checkpoint delta not deployed |
-| Application/meeting deployed versions | Verify and record privately |
-| Integration test evidence | R1 Windows 45/17 and Linux 45/17 plus native probes 7/2 passed; R2 Linux 438 run / 437 passed / 1 optional private audit skipped; runner 45/17 passed; dashboard Linux 24 passed; music Linux 24 passed with preserved dashboard 24, meeting-admission 17 and runner 45/17 regressions; meeting corrections Linux full 450 run / 449 passed / 1 optional private audit skipped, final focused 13 passed, runner 45/17 passed; R2-D final Linux runner 73/19 passed (28 new dual/scope cases), meeting full 451 run / 450 passed / 1 optional audit skipped plus final focused 30 passed, wallpaper 24 and music 24 passed; live integration pending |
-| Reviewed meeting artifact | Pending |
-| Operator manual-upload confirmation | Pending — completed only on explicit operator confirmation; no Codex website check |
-| R3 operator acceptance | Pending — gateway requires accepted coexistence and explicit manual-upload confirmation |
-| Advanced GPU coordination acceptance | Pending — after gateway/client stabilization |
-| Automatic website upload | W1 final phase, deferred; drafts only, never automatic publication |
-| Caller state | Four application/client containers stopped; HA GPU automations, Continue and HA voice paused; both ComfyUI backends running with no jobs authorized |
-| Docker-restart cron | Intentionally disabled indefinitely by operator decision 2026-10-08; original backup retained; restore only on explicit operator request |
-| Next authorized action | Operator review of R2-D offline diff/tests/scope transition and deployment steps; separate approval for live inspection, installation, service changes, switching and inference; no current live work |
-
-## 12. References and provenance
-
-This roadmap combines the user's decisions in this conversation with the supplied **Pasted markdown.md** integration review. Application call-site observations and the proposed runner layout come from that review and must be rechecked against the actual checkout before editing. Phases and acceptance gates above are planned work, not completion claims.
-
-Primary technical references checked 2026-10-08; verify installed-version behavior during implementation:
-
-[1]: https://docs.ollama.com/faq "Ollama: GPU placement, model retention, concurrency, and KV-cache configuration"
-[2]: https://docs.comfy.org/development/comfyui-server/comms_routes "ComfyUI: submission, history, queue, and execution interfaces"
-[3]: https://man7.org/linux/man-pages/man2/flock.2.html "Linux flock: lock ownership and release semantics"
-[4]: https://docs.ollama.com/api/streaming "Ollama native streaming API"
-[5]: https://docs.openwebui.com/getting-started/quick-start/connect-a-provider/ "Open WebUI provider connections"
-[6]: https://docs.anythingllm.com/setup/llm-configuration/local/ollama "AnythingLLM Ollama configuration"
-[7]: https://docs.continue.dev/reference "Continue model roles and apiBase configuration"
+See [reliability contracts](docs/reliability-contracts.md), [finding matrix](docs/reliability-candidate.md) and [component provenance](docs/source-reconstruction.md). Offline qualification is separate from installation, exact recovery authorization and five eligible production days. Unknown-history manual retirement is disabled; no new automatic authority is included.

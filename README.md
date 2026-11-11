@@ -5,10 +5,7 @@ jobs/ownership, existing persistent physical locks, named backend adapters and
 an authenticated internal job API. No extra queue/database, business-logic rewrite,
 Ollama gateway or website automation.
 
-Status: dual-session delta implemented/tested offline for review. The operator
-reports the runner installed/bootstrapped on AI-HUB, ready with no owners and
-Ollama restored to GPU1-only. Exact deployed version/scope require approved
-inspection. No live action was performed here. Keep callers stopped/paused.
+Status: offline reliability candidate for independent review. Start with [roadmap.md](roadmap.md), [candidate scope](docs/reliability-candidate.md) and [source provenance](docs/source-reconstruction.md). No production change or schedule pause is authorized by this checkout. The following dual-session material describes the prior checkpoint.
 See [dual session and deployment steps](docs/dual-meeting-session.md) for explicit
 two-GPU sessions, controlled restoration and journal-preserving scope transition.
 Normal API callers remain GPU1/GPU0; they cannot submit to the dual session target.

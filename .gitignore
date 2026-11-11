@@ -10,3 +10,7 @@ __pycache__/
 /release-candidates/
 /review/
 /recovery-delta/
+
+node_modules/
+/dist/
+/qualification/results/

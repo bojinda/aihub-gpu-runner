@@ -5,6 +5,7 @@ import errno
 import functools
 import io
 import math
+import os
 import time
 
 from .backends import CleanupPending, Uncertain, physical_gpu_uuid, remaining
@@ -23,6 +24,17 @@ class _ProcessPending(Exception):
 
 class _UtilizationPending(Exception):
     """A complete safe observation is still above the accepted idle utilization."""
+
+
+def query_start_ticks():
+    """Host boot clock in the same units as /proc stat starttime; fail closed."""
+    try:
+        rate = os.sysconf('SC_CLK_TCK')
+        if type(rate) is not int or rate <= 0:
+            return None
+        return time.clock_gettime_ns(time.CLOCK_BOOTTIME) * rate // 1_000_000_000
+    except (AttributeError, OSError, ValueError):
+        return None
 
 
 # Never persist arbitrary exception strings, paths, commands, response bodies or
@@ -368,9 +380,54 @@ class OllamaCleanupGuard:
         compute_pids = set()
         probe_pids_for_sample = set(self.readonly_probes)
         self.mark_phase('compute_apps')
+        started_ticks = query_start_ticks()
         raw = self.observer.command([self.p['nvidia_smi'],
             '--query-compute-apps=gpu_uuid,pid,used_gpu_memory', '--format=csv,noheader,nounits'], deadline)
-        for row in csv.reader(io.StringIO(raw)):
+        rows = list(csv.reader(io.StringIO(raw)))
+        # Correlate the complete observation before rejecting a process born
+        # between censuses. No absent/defunct/unknown process is authenticated.
+        # GPU PID rows do not prove ancestry of an older stale row: every such
+        # correlation discards the sample and requires positive exit + fresh idle.
+        missing = set()
+        row_keys = set()
+        for row in rows:
+            if not row:
+                continue
+            if len(row) != 3:
+                raise RecoveryRequired('ollama_cleanup_invalid_compute_observation')
+            uuid, pid = physical_gpu_uuid(row[0].strip()), str(int(row[1].strip()))
+            if not pid.isdecimal() or not 0 < int(pid) < 2**31:
+                raise RecoveryRequired('ollama_cleanup_invalid_compute_observation')
+            self.rejection_diagnostics('compute_row_before_correlation',pid=pid,gpu_uuid=uuid,
+                used_gpu_memory=row[2],query_start_ticks=started_ticks,
+                captured_birth=self.context['ollama_processes'].get(pid),
+                settling_birth=self.settling.get(pid),probe_attested=pid in probe_pids_for_sample)
+            if uuid in uuid_resources and (uuid,pid) in row_keys:
+                self.mark_phase('compute_apps','ollama',pid)
+                self.rejection_diagnostics('duplicate_compute_identity',pid=pid,gpu_uuid=uuid)
+                raise RecoveryRequired('ollama_cleanup_unknown_or_duplicate_gpu_process')
+            row_keys.add((uuid,pid))
+            if (uuid in uuid_resources and pid not in known and
+                    pid not in self.context['ollama_processes'] and pid not in self.settling):
+                missing.add(pid)
+        if missing:
+            self.rejection_diagnostics('compute_census_correlation', pids=sorted(missing), query_start_ticks=started_ticks)
+            correlated = self.probe_census(identities['ollama'], deadline, owned_work)
+            for pid in sorted(missing, key=int):
+                self.mark_phase('compute_apps', 'ollama', pid)
+                role = self.readonly_probes.get(pid)
+                birth = correlated.get(pid)
+                if (role is None or not isinstance(birth, str) or not birth.isdecimal() or
+                        started_ticks is None or int(birth) >= started_ticks - 1 or
+                        role['birth'] != birth or pid in self.exited or self.birth_reader(pid) != birth):
+                    self.rejection_diagnostics('unknown_compute_identity_unproven', pid=pid,
+                        observed_birth=birth, query_start_ticks=started_ticks, probe_attested=bool(role))
+                    raise RecoveryRequired('ollama_cleanup_unknown_or_duplicate_gpu_process')
+                known[pid] = ('ollama', birth)
+                probe_pids_for_sample.add(pid)
+                self.sample_turnover = True
+                self.rejection_diagnostics('correlated_probe_sample_discarded', pid=pid, birth=birth)
+        for row in rows:
             self.mark_phase('compute_apps')
             if not row:
                 continue
@@ -378,6 +435,7 @@ class OllamaCleanupGuard:
                 raise RecoveryRequired('ollama_cleanup_invalid_compute_observation')
             uuid = physical_gpu_uuid(row[0].strip())
             pid = str(int(row[1].strip()))
+            self.mark_phase('compute_apps', 'ollama' if uuid in uuid_resources else None, pid)
             self.rejection_diagnostics('compute_row',pid=pid,gpu_uuid=uuid,used_gpu_memory=row[2],
                 captured_birth=self.context['ollama_processes'].get(pid),settling_birth=self.settling.get(pid),
                 positive_exit_birth=self.exited.get(pid),probe_attested=pid in probe_pids_for_sample)
@@ -387,6 +445,7 @@ class OllamaCleanupGuard:
                 if uuid not in uuid_resources:
                     raise RecoveryRequired('ollama_cleanup_unleased_gpu_activity')
                 if (uuid, pid) in seen:
+                    self.rejection_diagnostics('duplicate_compute_identity', pid=pid, gpu_uuid=uuid)
                     raise RecoveryRequired('ollama_cleanup_unknown_or_duplicate_gpu_process')
                 seen.add((uuid, pid))
                 self.number(row[2])  # Still reject malformed driver observations.
@@ -410,6 +469,7 @@ class OllamaCleanupGuard:
                     raise RecoveryRequired('ollama_cleanup_unleased_gpu_activity')
                 continue
             if (uuid, pid) in seen:
+                self.rejection_diagnostics('duplicate_compute_identity', pid=pid, gpu_uuid=uuid)
                 raise RecoveryRequired('ollama_cleanup_unknown_or_duplicate_gpu_process')
             seen.add((uuid, pid))
             memory = self.number(row[2])
@@ -565,14 +625,10 @@ class OllamaCleanupGuard:
 
     @_report_errors
     def commit_check(self, deadline, *, terminal=False):
-        """One fresh observation under the original budget; no settling/replay."""
+        """Fresh stable proof using the original budget, without repeated unload."""
         self.terminal = terminal
         try:
-            remaining(deadline, CleanupPending)
-            self.sample(deadline)
-            remaining(deadline, CleanupPending)
-        except (_MemoryPending, _ProcessPending, _UtilizationPending):
-            raise RecoveryRequired('ollama_cleanup_no_longer_idle') from None
+            return self.verify(deadline)
         finally:
             self.terminal = False
 

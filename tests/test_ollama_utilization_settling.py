@@ -117,7 +117,7 @@ class UtilizationSettlingTests(unittest.TestCase):
         self.assertAlmostEqual(self.c.clock.t, self.deadline)
 
     def test_memory_breach_after_utilization_settles_resets_stability(self):
-        self.prepare(); self.sequence([80, 0, 0, 0, 0, 0, 0])
+        self.prepare(); self.sequence([80] + [0]*12)
         self.c.apps = lambda: fixture.GPU0 + ',202,2000\n'
         self.c.memory = lambda: 96 if len(self.samples) == 4 else 1
         self.verify()
@@ -224,7 +224,7 @@ class UtilizationSettlingTests(unittest.TestCase):
         self.assertEqual(self.sleeps, [])
 
     def test_worker_unloads_once_and_releases_only_after_three_idle_samples(self):
-        runner, lease, payload = self.worker(); self.sequence([80, 0, 0, 0])
+        runner, lease, payload = self.worker(); self.sequence([80] + [0]*12)
         runner._work('owned-job', lease)
         job = self.c.store.job('owned-job')
         self.assertEqual(job['state'], 'success')
@@ -276,7 +276,8 @@ class UtilizationSettlingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             disk = AtomicStore(Path(tmp) / 'state')
             disk.put_job(self.c.store.job('owned-job'))
-            gate = types.SimpleNamespace(store=disk, snapshot=self.c.a.snapshot)
+            gate = types.SimpleNamespace(store=disk, snapshot=self.c.a.snapshot, finalize_recoveries=lambda:None,
+                                         maintenance_blocked=lambda:False)
             recovery = Mock()
             with patch('aihub_gpu_runner.core.threading.Thread.start'):
                 restarted = Runner(gate, {'ollama': self.c.target}, {'ollama': self.c.backend}, recovery=recovery)

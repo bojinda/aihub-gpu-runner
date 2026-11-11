@@ -124,7 +124,7 @@ class ExitRaceTests(unittest.TestCase):
 
     def test_other_service_exit_is_not_excused(self):
         self.c.prepare(); self.arm_exit('202')
-        self.rejected('container_process_disappeared', ProcessDisappeared)
+        self.rejected('container_main_process_unverified')
         self.assertEqual(self.c.records[-1]['ollama_cleanup_failure']['service'], 'music')
 
     def test_unknown_child_disappearance_is_not_excused(self):

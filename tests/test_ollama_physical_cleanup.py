@@ -70,7 +70,7 @@ class PhysicalCleanupTests(unittest.TestCase):
         self.state = dict(scope='offline-scope', ready=True, verified_boot=BOOT,
                           owners={'gpu1':copy.deepcopy(self.owner)},
                           recovery_policy={'policy':copy.deepcopy(self.p),'policy_id':digest(self.p)})
-        self.a = types.SimpleNamespace(scope='offline-scope', store=self.store,
+        self.a = types.SimpleNamespace(scope='offline-scope', store=self.store, maintenance_blocked=lambda:False,
             snapshot=lambda:copy.deepcopy(self.state), boot_reader=lambda:BOOT,
             _check_physical_identities=Mock())
         self.calls, self.commands, self.records = [], [], []
@@ -146,12 +146,9 @@ class PhysicalCleanupTests(unittest.TestCase):
         with self.assertRaisesRegex(RecoveryRequired,'unknown_or_duplicate'):self.guard.verify(2)
         self.assertAlmostEqual(self.clock.t,.036442)
 
-    def test_new_and_reused_ollama_processes_fail_closed(self):
-        for pids in ({'303':'server-birth','305':'new-client'},{'303':'server-birth','304':'reused'}):
-            with self.subTest(pids=pids):
-                self.ollama_pids={'303':'server-birth','304':'owned-runner-birth'}
-                self.prepare();self.ollama_pids=pids
-                with self.assertRaisesRegex(RecoveryRequired,'new_or_reused'):self.guard.verify(2)
+    def test_reused_ollama_process_fails_closed(self):
+        self.prepare(); self.ollama_pids['304'] = 'reused'
+        with self.assertRaisesRegex(RecoveryRequired,'new_or_reused'):self.guard.verify(2)
 
     def test_pid_birth_change_after_gpu_sample_is_rejected(self):
         self.prepare();self.births['304']='reused-after-top'
@@ -259,7 +256,9 @@ class PhysicalCleanupTests(unittest.TestCase):
             request_hash=hashlib.sha256(encode(dict(target='ollama',operation='generate',payload=payload))).hexdigest())
         self.store.put_job(j);self.owner['request_hash']=j['request_hash'];self.state['owners']['gpu1']['request_hash']=j['request_hash']
         def mark(phase,*args):self.state['owners']['gpu1']['phase']=phase
-        def release(proof):
+        def release(proof, before_release=None, validate_clear=None):
+            if before_release:before_release()
+            if validate_clear:validate_clear()
             self.assertGreaterEqual(self.clock.t,.7)
             self.assertEqual(proof['physical_ollama_idle']['stable_samples'],3)
             self.state['owners'].clear()

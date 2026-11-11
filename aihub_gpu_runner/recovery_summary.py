@@ -125,8 +125,8 @@ def summarize_recovery(state, jobs=(), *, at=None, include_incidents=False):
         if record.get('phase') in pending and not historical:
             attention = True
     if any(_dict(job).get('recovery_status') == 'operator_required' or
-           (_dict(job).get('state') == 'reconciling' and
-            _dict(job).get('error_code') == 'supervisor_restart_unresolved_owner')
+           (_dict(job).get('state') in ('reconciling', 'cleanup_pending') and
+            bool(_dict(job).get('error_code')))
            for job in jobs):
         attention = True
     summary = {'schema_version': 1,

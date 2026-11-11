@@ -121,8 +121,10 @@ def validate_policy(policy, admission, targets):
     if not isinstance(services, dict) or 'wallpaper' not in services:
         raise ValueError('dedicated_wallpaper_binding_required')
     for service, binding in services.items():
-        if (not isinstance(binding, dict) or set(binding) != {
-                'name', 'id', 'image', 'contract_sha256', 'idle_memory_mb', 'identity_mode'} or
+        required_binding = {'name', 'id', 'image', 'contract_sha256', 'idle_memory_mb', 'identity_mode'}
+        if (not isinstance(binding, dict) or not required_binding <= set(binding) or
+                set(binding) - required_binding - {'contract_canonicalization'} or
+                binding.get('contract_canonicalization', 'legacy') not in ('legacy', 'env-v1') or
                 binding['identity_mode'] not in ('exact', 'contract') or
                 not re.fullmatch(r'[a-f0-9]{64}', binding['id']) or
                 not re.fullmatch(r'sha256:[a-f0-9]{64}', binding['image']) or
@@ -160,11 +162,31 @@ class RecoveryObserver:
             raise Uncertain('recovery_control_or_observation_uncertain') from None
 
     @staticmethod
-    def contract(meta):
+    def contract(meta, canonicalization='legacy'):
+        # Legacy hashes remain unchanged unless the policy explicitly opts in.
+        if canonicalization not in ('legacy', 'env-v1'):
+            raise RecoveryRequired('container_contract_canonicalization_invalid')
         # Exclude runtime timestamps/PIDs/status; bind all executable configuration.
         if not isinstance(meta.get('Mounts'), list):
             raise RecoveryRequired('container_mounts_invalid')
         result = copy.deepcopy({k: meta[k] for k in ('Name', 'Image', 'Config', 'HostConfig', 'Mounts')})
+        if canonicalization == 'env-v1':
+            # Compose may enumerate its environment mapping in a different order
+            # on each recreation. Bind every complete entry, without normalizing
+            # values or accepting ambiguous duplicate keys. Other arrays stay ordered.
+            env = result['Config'].get('Env')
+            if not isinstance(env, list):
+                raise RecoveryRequired('container_environment_invalid')
+            keys = set()
+            for entry in env:
+                if (not isinstance(entry, str) or '\x00' in entry or
+                        '=' not in entry or not entry.split('=', 1)[0]):
+                    raise RecoveryRequired('container_environment_invalid')
+                key = entry.split('=', 1)[0]
+                if key in keys:
+                    raise RecoveryRequired('container_environment_keys_ambiguous')
+                keys.add(key)
+            result['Config']['Env'] = sorted(env)
         destinations = set()
         for mount in result['Mounts']:
             destination = mount.get('Destination') if isinstance(mount, dict) else None
@@ -195,7 +217,7 @@ class RecoveryObserver:
         if ((b['identity_mode'] == 'exact' and m.get('Id') != b['id']) or
                 not re.fullmatch(r'[a-f0-9]{64}', m.get('Id', '')) or
                 m.get('Name') != '/' + b['name'] or m.get('Image') != b['image'] or
-                self.contract(m) != b['contract_sha256'] or m['State'].get('Restarting') or
+                self.contract(m, b.get('contract_canonicalization', 'legacy')) != b['contract_sha256'] or m['State'].get('Restarting') or
                 m['State'].get('Paused') or m['State'].get('Dead') or
                 (service == 'wallpaper' and m['HostConfig'].get('RestartPolicy', {}).get('Name') not in ('no', ''))):
             raise RecoveryRequired('container_identity_or_supervision_changed')
@@ -235,7 +257,7 @@ class RecoveryObserver:
             raise RecoveryRequired('wallpaper_generation_changed_during_placement')
         return {'physical_gpu_uuids': {r: self.p['gpu_uuids'][r] for r in resources}}
 
-    def processes(self, identity, deadline, *, on_missing=None):
+    def processes(self, identity, deadline, *, on_missing=None, pids_only=False):
         if not identity['running']:
             return {}
         raw = self.command([self.p['docker'], 'top', identity['id'], '-eo', 'pid'], deadline)
@@ -252,6 +274,9 @@ class RecoveryObserver:
             if int(pid) <= 0 or pid in listed:
                 raise RecoveryRequired('container_process_identity_unverified')
             listed.add(pid)
+            if pids_only:
+                pids[pid] = None
+                continue
             try:
                 pids[pid] = process_birth(pid)
             except ProcessDisappeared:
@@ -315,7 +340,14 @@ class RecoveryObserver:
                 observations[name] = {'api_unavailable': True}
         return observations
 
-    def gpu_sample(self, resources, deadline, executing=False, stopped=False):
+    def gpu_sample(self, resources, deadline, executing=False, stopped=False, *, music_context=None):
+        # Opt-in only for the bound post-ack Music guard. Default callers retain
+        # their original hard service-limit behavior. No exception is suppressed.
+        if music_context is not None and (tuple(resources) != ('gpu0',) or executing or not stopped):
+            raise RecoveryRequired('music_release_observation_scope_invalid')
+        pending = []
+        compute_births = {}
+        seen_compute = set()
         driver_health = self.driver_health(deadline)
         known = {}
         service_identities = {}
@@ -349,12 +381,23 @@ class RecoveryObserver:
             pid, memory = int(row[1]), float(row[2])
             if pid not in known or not math.isfinite(memory) or memory < 0:
                 raise RecoveryRequired('unexplained_gpu_process_or_memory')
+            if music_context is not None:
+                service = known[pid]
+                birth = process_birth(pid)
+                if ((resource, pid) in seen_compute or
+                        music_context['processes'].get(service, {}).get(str(pid)) != birth):
+                    raise RecoveryRequired('music_release_unknown_or_reused_compute_process')
+                seen_compute.add((resource, pid))
+                compute_births[str(pid)] = birth
             usage[known[pid]][resource] += memory
         for service, values in usage.items():
             if executing and service == 'wallpaper':
                 continue
             if any(v > self.p['services'][service]['idle_memory_mb'][r] for r, v in values.items()):
-                raise RecoveryRequired('service_exceeds_calibrated_idle_baseline_' + service)
+                if music_context is not None and service == 'music':
+                    pending.append('music_memory_settling')
+                else:
+                    raise RecoveryRequired('service_exceeds_calibrated_idle_baseline_' + service)
         samples = {}
         for r in resources:
             rows = list(csv.reader(io.StringIO(self.command([
@@ -373,12 +416,28 @@ class RecoveryObserver:
             ceiling = self.p['stopped_idle_memory_mb'] if stopped else self.p['idle_memory_mb']
             if not executing and (values[0] > ceiling[r] or
                                    values[1] > self.p['idle_utilization_pct']):
-                raise CleanupPending('gpu_not_at_calibrated_idle_' + r)
+                if music_context is not None:
+                    pending.append('gpu0_memory_or_utilization_settling')
+                else:
+                    raise CleanupPending('gpu_not_at_calibrated_idle_' + r)
             samples[r] = {'uuid': self.p['gpu_uuids'][r], 'memory_mb': values[0],
                           'utilization_pct': values[1], 'temperature_c': values[2],
                           'uncorrected_ecc': ecc, 'retired_pending': retired}
+        if music_context is not None:
+            for service in ('music', 'wallpaper'):
+                if (service_identities[service] != music_context['identities'][service] or
+                        self.container(service, deadline) != service_identities[service]):
+                    raise RecoveryRequired('music_release_generation_changed')
+            if self.processes(service_identities['music'], deadline) != music_context['processes']['music']:
+                raise RecoveryRequired('music_release_process_birth_changed')
+            for pid, birth in compute_births.items():
+                if process_birth(pid) != birth:
+                    raise RecoveryRequired('music_release_process_birth_changed')
+            remaining(deadline, CleanupPending)
         return {'gpus': samples, 'service_memory_mb': usage, 'driver_health': driver_health,
-                'service_identities': service_identities}
+                'service_identities': service_identities,
+                **({'music_settling': pending, 'compute_births': compute_births}
+                   if music_context is not None else {})}
 
     def driver_health(self, deadline):
         # Require readable, current-boot kernel diagnostics; an empty/inaccessible
@@ -539,6 +598,9 @@ class RecoveryManager:
         job = self.store.job(job_id)
         fields = {'boot_id': lease.owner.get('boot_id'),
                   'execution_deadline': now() + self.targets[job['target']].execution_timeout}
+        if job['target'] == 'music' and 'stopped_idle_memory_mb' in self.p:
+            from .music_cleanup import capture_execution
+            fields['music_execution'] = capture_execution(self.observer, time.monotonic() + self.p['observation_timeout'])
         if job['target'] == 'wallpaper':
             ident = self.observer.container('wallpaper', time.monotonic() + self.p['observation_timeout'])
             if not ident['running'] or ident['pid'] <= 0:
@@ -548,6 +610,8 @@ class RecoveryManager:
         self.update_job(job_id, **fields)
 
     def startup(self):
+        if self.a.maintenance_blocked():
+            return
         if self.lifecycle:
             self.lifecycle.finalize_released()
         boot = self.a.boot_reader()
@@ -618,7 +682,9 @@ class RecoveryManager:
                     if (job.get('request_hash') != owner['request_hash'] or job.get('target') != owner['target'] or
                             sorted(job.get('resources', [])) != held):
                         raise RecoveryRequired('boot_startup_job_owner_binding_changed')
-                    if job['state'] not in FINAL:
+                    if job['state'] not in FINAL or (job.get('music_cleanup_context') and
+                            job['state'] == 'success' and owner['lease_id'] not in
+                            self.a.snapshot().get('music_release_receipts', {})):
                         self.update_job(owner['job_id'], state='failed', error_code='guest_reboot_interrupted',
                             **({'host_exit_code': 70} if job.get('host_stage') else {}))
                 deadline = time.monotonic() + self.p['observation_timeout']
@@ -683,14 +749,15 @@ class RecoveryManager:
                 boot_recovery_error=error(exc), boot_recovery_attempt_boot=boot))
             return False
 
-    def boot_readiness(self, resources, deadline):
+    def boot_readiness(self, resources, deadline, *, startup_record=None):
         proof = (self.observer.stopped_ready(resources, deadline) if self.lifecycle else
                  self.observer.ready(resources, deadline))
-        current = self.boot_generation(deadline)
+        current = self.boot_generation(deadline, startup_record=startup_record)
         return dict(proof, boot_wallpaper_container=current, verified_boot=self.a.boot_reader())
 
-    def boot_generation(self, deadline):
-        record = self.a.snapshot().get('boot_startups', {}).get(self.a.boot_reader(), {})
+    def boot_generation(self, deadline, *, startup_record=None):
+        record = (self.a.snapshot().get('boot_startups', {}).get(self.a.boot_reader(), {})
+                  if startup_record is None else startup_record)
         current = self.observer.container('wallpaper', deadline)
         if record.get('phase') != 'ready' or current != record['running_container']:
             raise RecoveryRequired('boot_wallpaper_generation_changed_before_handoff')
@@ -704,8 +771,13 @@ class RecoveryManager:
             return
         self.last_tick = time.monotonic()
         try:
+            self.a.finalize_native_settlements()
+            if self.a.maintenance_blocked():
+                return
             if self.lifecycle:
                 self.lifecycle.finalize_released()
+            adapter=getattr(self,'integrated_adapter',None)
+            if adapter:adapter.restore_normal_receipts()
             state = self.a.snapshot()
             boot = self.a.boot_reader()
             if state.get('verified_boot') != boot and not self.boot_startup(boot):
@@ -771,6 +843,14 @@ class RecoveryManager:
         boot, old_boot = self.a.boot_reader(), owner.get('boot_id')
         reboot = valid_boot(boot) and valid_boot(old_boot) and boot != old_boot
         job = self.store.job(owner['job_id'])
+        # The no-start authority is independent of backend readiness and old
+        # operator-required incidents. It acquires the original locks itself.
+        if getattr(self.a, 'automatic_no_start_enabled', False) and not reboot and owner['target']=='wallpaper':
+            if self.a.retire_prepared_wallpaper(owner['job_id']):
+                return
+        if (not reboot and owner['target']=='wallpaper' and
+                getattr(self.a,'integrated_settings',{}).get('destructive',False)):
+            return  # No parallel legacy stop authority; explicit integrated recovery owns this case.
         if valid_boot(boot) and valid_boot(old_boot) and not reboot and (
                 job.get('host_stage') or owner['target'] != 'wallpaper'):
             return
@@ -798,7 +878,9 @@ class RecoveryManager:
                 if reboot:
                     if job.get('execution_container'):
                         incident = self.save(incident, container=job['execution_container'])
-                    if job['state'] not in FINAL:
+                    if job['state'] not in FINAL or (job.get('music_cleanup_context') and
+                            job['state'] == 'success' and owner['lease_id'] not in
+                            self.a.snapshot().get('music_release_receipts', {})):
                         self.update_job(owner['job_id'], state='failed', error_code='guest_reboot_interrupted',
                                         **({'host_exit_code': 70} if job.get('host_stage') else {}))
                     # Reboot proves old execution interruption, not present readiness or placement.
@@ -976,7 +1058,7 @@ class RecoveryManager:
         if job['state'] not in FINAL:
             self.update_job(job_id, state='failed' if execution_error else 'success', error_code=execution_error)
 
-    def finish(self, incident, owner, resources, proof):
+    def finish(self, incident, owner, resources, proof, *, operator_transition=None):
         # Proof -> terminal job -> atomic audit+release. Crash at any edge is resumable.
         readiness = proof.get('readiness', proof)
         ready_key = 'idle_ready' if self.lifecycle else 'backend_ready'
@@ -992,14 +1074,24 @@ class RecoveryManager:
                 raise RecoveryRequired('recovery_owner_changed_before_release')
             if self.store.job(owner['job_id'])['state'] not in FINAL:
                 raise RecoveryRequired('recovery_job_not_terminal')
+            if operator_transition is not None:
+                from .reboot_contract import commit_transition
+                commit_transition(self, state, operator_transition, proof)
             state['automatic_recovery'][incident['id']] = dict(incident, phase='released', released_at=timestamp())
             if not any(e.get('incident_id') == incident['id'] for e in state.setdefault('recoveries', [])):
-                state['recoveries'].append({'incident_id': incident['id'], 'identity': incident['identity'],
+                audit = {'incident_id': incident['id'], 'identity': incident['identity'],
                     'container': incident.get('container'), 'observed_boot': self.a.boot_reader(),
-                    'proof': proof, 'recovered_at': timestamp(), 'provenance': 'runner_observations'})
+                    'proof': proof, 'recovered_at': timestamp(), 'provenance': 'runner_observations'}
+                if operator_transition is not None:
+                    audit['operator_contract_transition'] = operator_transition['audit']
+                state['recoveries'].append(audit)
             for r in resources:
                 del state['owners'][r]
-        self.change(release)
+        if operator_transition is not None:
+            with self.jobs.held():
+                self.change(release)
+        else:
+            self.change(release)
 
 
 def binding(owner):

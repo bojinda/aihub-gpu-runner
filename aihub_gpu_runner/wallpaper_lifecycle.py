@@ -79,14 +79,17 @@ class WallpaperLifecycle:
                   'startup_deadline': expiry}
         self.m.update_job(job_id, wallpaper_lifecycle=record, boot_id=owner['boot_id'])
         self.observer.stopped_ready(resources, deadline)
+        adapter=getattr(self.m,'integrated_adapter',None)
+        if adapter:adapter.pre_start()
         self.save(job_id, phase='starting', start_intent=timestamp())
         try:
             self.observer.start(current, deadline)
         except Uncertain:
             self.save(job_id, start_response_uncertain=True)
         current = self.m.running(current, deadline, require_new=True)
+        adapter=getattr(self.m,'integrated_adapter',None)
         self.save(job_id, running_container=current,
-                  original_pids=self.observer.processes(current, deadline))
+                  original_pids=adapter.initial_processes(current) if adapter else self.observer.processes(current, deadline))
         placement = self.observer.placement(current, resources, deadline)
         proof = self.observer.ready(resources, deadline)
         if self.observer.container('wallpaper', deadline) != current:
@@ -96,11 +99,17 @@ class WallpaperLifecycle:
         # Execution gets its full separate budget only after startup is verified.
         self.m.update_job(job_id, execution_deadline=now() + self.target.execution_timeout,
             execution_container=current, execution_processes=self.store.job(job_id)['wallpaper_lifecycle']['original_pids'])
+        adapter=getattr(self.m,'integrated_adapter',None)
+        if adapter:
+            self.m.update_job(job_id,**adapter.capture(self.store.job(job_id),current))
+            self.m.backends['wallpaper'].owned_submission=adapter.owned_ticket(self.store.job(job_id))
 
     def submit_intent(self, owner, resources):
         record = self.record(owner, resources)
         if record['phase'] != 'ready':
             raise RecoveryRequired('wallpaper_submission_not_new_and_ready')
+        adapter=getattr(self.m,'integrated_adapter',None)
+        if adapter:adapter.pre_start()
         self.save(owner['job_id'], phase='submit_intent', submission_intent=timestamp())
 
     def run(self, runner, job, lease):
@@ -117,6 +126,7 @@ class WallpaperLifecycle:
                        backend_detail=execution.handle, owned_execution_failed=bool(execution.error_code))
         lease.mark('cleanup_pending', execution.handle)
         self.persist(job_id, execution)
+        getattr(self.m.backends['wallpaper'],'handoff_checkpoint',lambda:None)()
         if execution.error_code:
             raise Uncertain('wallpaper_owned_execution_failed')
         self.complete(owner, resources)
@@ -160,6 +170,9 @@ class WallpaperLifecycle:
         job_id = owner['job_id']
         record = self.record(owner, resources)
         self.verify_result(job_id, record)  # Never destroy the only available output.
+        adapter=getattr(self.m,'integrated_adapter',None)
+        if adapter:
+            return adapter.shutdown_completed(self.store.job(job_id),deadline)
         original = record.get('running_container') or record['original_container']
         current = self.observer.container('wallpaper', deadline)
         if any(current[k] != original[k] for k in ('id', 'started_at', 'contract_sha256')):
@@ -222,9 +235,11 @@ class WallpaperLifecycle:
         receipt = {'identity': record['identity'], 'result_sha256': record['result_sha256'],
                    'artifact_sha256': record['artifact_sha256'], 'execution_error': record.get('execution_error'),
                    'proof': proof, 'released_at': timestamp()}
-        if proof.get('idle_ready') is not True or proof.get('cleanup_verified') is not True:
+        if (proof.get('idle_ready') is not True and proof.get('ownership_release_ready') is not True) or proof.get('cleanup_verified') is not True:
             raise RecoveryRequired('wallpaper_stopped_cleanup_proof_required')
-        if self.observer.container('wallpaper', deadline) != proof['stopped_container']:
+        adapter=getattr(self.m,'integrated_adapter',None)
+        observed=(adapter.original_container(self.store.job(job_id),deadline) if adapter else self.observer.container('wallpaper',deadline))
+        if observed != proof['stopped_container']:
             raise RecoveryRequired('wallpaper_changed_before_lifecycle_handoff')
         remaining(deadline)
         def release(state):
@@ -247,6 +262,7 @@ class WallpaperLifecycle:
                 del state['owners'][r]
         self.m.change(release)  # Receipt + paired handoff + optional recovery audit are atomic.
         self.finalize_released()
+        if adapter:adapter.restore_normal_receipts()
 
     def finalize_released(self):
         state = self.a.snapshot()

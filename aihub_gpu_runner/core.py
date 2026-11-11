@@ -238,8 +238,9 @@ def lock_identity(stat_value):
 class Admission:
     """Every participating launcher must use this gate, never the OS lock alone."""
     def __init__(self, store, lock_paths, scope, require_existing_locks=False,
-                 boot_reader=guest_boot_id):
+                 boot_reader=guest_boot_id, control_required=False):
         self.store = store
+        self.control_required = control_required
         self.boot_reader = boot_reader
         if not lock_paths or set(lock_paths) - {"gpu0", "gpu1"}:
             raise ValueError("invalid_resources")
@@ -283,6 +284,18 @@ class Admission:
         return state
     def snapshot(self):
         return self._validate(self.store.read("ownership.json"))
+    def retire_prepared_wallpaper(self, job_id):
+        from .native_settlement import retire_prepared
+        return retire_prepared(self, job_id)
+    def finalize_native_settlements(self):
+        from .native_settlement import finalize_all
+        return finalize_all(self)
+    def settle_owned_recovery(self, attempt, proof, locks):
+        from .native_settlement import settle_owned_recovery
+        return settle_owned_recovery(self, attempt, proof, locks)
+    def maintenance_blocked(self):
+        from .maintenance import blocked
+        return blocked(self)
     def bootstrap(self, evidence):
         with self.mutex.held():
             state = self.snapshot()
@@ -312,7 +325,7 @@ class Admission:
             finally:
                 for lock in reversed(locks):
                     lock.close()
-    def try_acquire(self, job_id, request_hash, resources, target):
+    def try_acquire(self, job_id, request_hash, resources, target, *, deadline=None):
         check_id(job_id)
         resources = tuple(sorted(set(resources)))
         if not resources or set(resources) - set(self.lock_paths):
@@ -320,6 +333,10 @@ class Admission:
         locks = []
         with self.mutex.held():
             state = self.snapshot()
+            if self.maintenance_blocked():
+                return None
+            if deadline is not None and time.monotonic() >= deadline:
+                return None
             if state.get('recovery_policy') and (
                     not self.boot_reader() or state.get('verified_boot') != self.boot_reader()):
                 return None
@@ -343,6 +360,10 @@ class Admission:
                          "lease_id": uuid.uuid4().hex, "target": target, "phase": "claimed",
                          "claimed_at": timestamp()}
                 owner['boot_id'] = self.boot_reader()
+                if deadline is not None and time.monotonic() >= deadline:
+                    for lock in reversed(locks):
+                        lock.close()
+                    return None
                 for resource in resources:
                     state["owners"][resource] = dict(owner)
                 # Durable ownership precedes submission, even when the response is lost.
@@ -352,12 +373,22 @@ class Admission:
                 for lock in reversed(locks):
                     lock.close()
                 raise
-    def _modify(self, owner, resources, phase=None, clear=False, detail=None):
+    def _modify(self, owner, resources, phase=None, clear=False, detail=None, before_clear=None, validate_clear=None):
         with self.mutex.held():
             state = self.snapshot()
             if any(state["owners"].get(r, {}).get("lease_id") != owner["lease_id"]
                    for r in resources):
                 raise RecoveryRequired("stale_lease")
+            if validate_clear is not None:
+                if not clear:
+                    raise ValueError('clear_validation_requires_release')
+                validate_clear()
+            if before_clear is not None:
+                receipt = before_clear()  # Bound Music proof, using the existing mutex.
+                receipts = state.setdefault('music_release_receipts', {})
+                if not clear or owner['lease_id'] in receipts:
+                    raise RecoveryRequired('music_release_receipt_already_exists')
+                receipts[owner['lease_id']] = receipt
             for resource in resources:
                 if clear:
                     del state["owners"][resource]
@@ -372,6 +403,15 @@ class Admission:
             state = self.snapshot()
             matches = {r: o for r, o in state["owners"].items() if o["job_id"] == job_id}
             if not matches:
+                records = [d for d in state.get('recovery_dispositions', {}).values()
+                           if d.get('owner', {}).get('job_id') == job_id and
+                           d.get('approval_ref') == evidence.get('approval_ref') and
+                           all(d['owner'].get(k) == evidence.get(k) for k in
+                               ('job_id', 'request_hash', 'lease_id', 'target')) and
+                           all(evidence.get(k) is True for k in ('operator_approved_backend_recovery',
+                               'backend_quiescent', 'cleanup_verified'))]
+                if len(records) == 1:
+                    return  # Metadata finalization only; no new audit/control/release.
                 raise ValueError("no_matching_owner")
             owner = next(iter(matches.values()))
             job = self.store.read(self.store.job_name(job_id), {})
@@ -394,6 +434,12 @@ class Admission:
                         ("job_id", "request_hash", "lease_id", "target")) or
                     any(o["lease_id"] != owner["lease_id"] for o in matches.values())):
                 raise ValueError("invalid_or_stale_recovery_evidence")
+            if job and (job.get('request_id') != job_id or
+                    any(job.get(k) != owner[k] for k in ('request_hash','target')) or
+                    ('lease_id' in job and job['lease_id'] != owner['lease_id']) or
+                    sorted(job.get('resources', [])) != sorted(matches) or
+                    ('boot_id' in job and job['boot_id'] != owner.get('boot_id'))):
+                raise ValueError('recovery_job_owner_binding_changed')
             locks = []
             try:
                 for resource in sorted(matches):
@@ -407,13 +453,56 @@ class Admission:
                     locks.append(lock)
                     if lock_identity(os.fstat(lock.fd)) != state["lock_identity"][resource]:
                         raise RecoveryRequired("physical_lock_identity_changed_during_acquisition")
-                state.setdefault("recoveries", []).append(dict(evidence, recovered_at=timestamp()))
+                audit = dict(evidence, recovered_at=timestamp())
+                state.setdefault("recoveries", []).append(audit)
+                # The failed disposition is durable in the same write as clear.
+                # The job file is finalized separately, under the jobs mutex.
+                if job:
+                    state.setdefault('recovery_dispositions', {})[owner['lease_id']] = {
+                        'owner': {k:owner.get(k) for k in ('job_id','request_hash','lease_id','target','boot_id')},
+                        'resources': sorted(matches), 'approval_ref': evidence['approval_ref'],
+                        'job_sha256': hashlib.sha256(encode(job)).hexdigest(),
+                        'audit_sha256': hashlib.sha256(encode(audit)).hexdigest(),
+                        'error_code': 'operator_recovered_no_automatic_resubmission'}
                 for resource in matches:
                     del state["owners"][resource]
                 self.store.write("ownership.json", state)
             finally:
                 for lock in reversed(locks):
                     lock.close()
+
+    def finalize_recoveries(self, job_id=None):
+        """Idempotent failed-only metadata completion; never backend or lease work."""
+        with NativeLock(self.store.path('jobs.lock')).held():
+            state = self.snapshot()
+            for lease_id, record in state.get('recovery_dispositions', {}).items():
+                owner = record.get('owner', {})
+                if job_id is not None and owner.get('job_id') != job_id:
+                    continue
+                audits = [a for a in state.get('recoveries', [])
+                          if hashlib.sha256(encode(a)).hexdigest() == record.get('audit_sha256')]
+                job = self.store.job(owner['job_id'])
+                if (lease_id != owner.get('lease_id') or len(audits) != 1 or
+                        record.get('error_code') != 'operator_recovered_no_automatic_resubmission' or
+                        any(audits[0].get(k) != owner.get(k) for k in ('job_id','request_hash','lease_id','target')) or
+                        audits[0].get('approval_ref') != record.get('approval_ref') or
+                        not audits[0].get('recovered_at') or not record.get('approval_ref') or
+                        any(audits[0].get(k) is not True for k in ('operator_approved_backend_recovery','backend_quiescent','cleanup_verified')) or
+                        any(job.get(k) != owner.get(k) for k in ('request_hash','target')) or
+                        ('lease_id' in job and job['lease_id'] != owner.get('lease_id')) or
+                        ('boot_id' in job and job['boot_id'] != owner.get('boot_id')) or
+                        sorted(job.get('resources', [])) != record.get('resources') or
+                        any(o.get('job_id') == owner['job_id'] or o.get('lease_id') == lease_id
+                            for o in state['owners'].values())):
+                    raise RecoveryRequired('recovery_disposition_binding_unverified')
+                if job['state'] == 'failed' and job.get('error_code') == record['error_code']:
+                    continue
+                if hashlib.sha256(encode(job)).hexdigest() != record.get('job_sha256'):
+                    raise RecoveryRequired('recovery_disposition_job_changed')
+                job.update(state='failed', error_code=record['error_code'], updated_at=timestamp())
+                if job.get('host_stage'):
+                    job['host_exit_code'] = 70
+                self.store.put_job(job)
 
 
 class Lease:
@@ -422,11 +511,14 @@ class Lease:
         self.resources, self.locks = resources, locks
     def mark(self, phase, detail=None):
         self.admission._modify(self.owner, self.resources, phase=phase, detail=detail)
-    def release(self, proof):
+    def release(self, proof, *, before_release=None, before_clear=None, validate_clear=None):
         if (proof.get("completion_verified") is not True or
                 proof.get("cleanup_verified") is not True):
             raise ValueError("unverified_release")
-        self.admission._modify(self.owner, self.resources, clear=True)
+        if before_release is not None:
+            before_release()  # External observations never hold the shared journal mutex.
+        self.admission._modify(self.owner, self.resources, clear=True, before_clear=before_clear,
+                               validate_clear=validate_clear)
     def close(self):
         for lock in reversed(self.locks):
             lock.close()
@@ -448,6 +540,12 @@ class Runner:
         self.closed, self.futures, self.pending = False, {}, {}
         self.wake = threading.Event()
         self.recovery = recovery
+        self.handoffs = None
+        if getattr(admission,'integrated_settings',{}).get('destructive',False):
+            from .worker_handoff import WorkerHandoffs
+            self.handoffs = WorkerHandoffs(admission)
+            if 'wallpaper' in backends:
+                backends['wallpaper'].handoff_checkpoint = self.handoffs.checkpoint
         try:
             if self.recovery is None and admission.snapshot().get('recovery_policy'):
                 from .recovery import RecoveryManager
@@ -455,15 +553,29 @@ class Runner:
             if any(getattr(t, 'lifecycle', 'always_on') == 'on_demand' for t in targets.values()) and (
                     self.recovery is None or self.recovery.lifecycle is None):
                 raise RecoveryRequired('on_demand_requires_authorized_scope_bound_policy')
-            if self.recovery:
-                self.recovery.startup()
+            # Finish already-committed local recovery metadata before generic
+            # startup can rewrite its original, hash-bound nonterminal job.
+            if isinstance(admission,Admission):admission.finalize_native_settlements()
+            if not admission.maintenance_blocked():
+                admission.finalize_recoveries()
+                if self.recovery:
+                    self.recovery.startup()
             with self.job_mutex.held():
                 owners = self.admission.snapshot()["owners"]
                 owner_ids = {o["job_id"] for o in owners.values()}
                 for job in self.store.jobs():
+                    if admission.maintenance_blocked():
+                        break  # Preserve exact evidence across interrupted recovery.
                     # Local host stages supervise themselves with the same
                     # Admission journal; API restart cannot rewrite an active stage.
                     if job.get("host_stage") is True:
+                        continue
+                    # Retain an anchorless ready generation as evidence across attended
+                    # installation. No startup replay, adoption or release is authorized.
+                    if (job["request_id"] in owner_ids and job.get('target')=='wallpaper' and
+                            job.get('state')=='reconciling' and not job.get('execution_anchor') and
+                            job.get('wallpaper_lifecycle',{}).get('phase')=='ready' and
+                            not job['wallpaper_lifecycle'].get('submission_intent')):
                         continue
                     if job["state"] not in FINAL:
                         job["state"] = "reconciling" if job["request_id"] in owner_ids else "failed"
@@ -499,6 +611,8 @@ class Runner:
         request_hash = hashlib.sha256(encode({"target": target, "operation": operation,
                                               "payload": payload})).hexdigest()
         with self.job_mutex.held():
+            if self.admission.maintenance_blocked():
+                raise Conflict('recovery_maintenance')
             existing = self.store.read(self.store.job_name(request_id))
             if existing:
                 if existing["request_hash"] != request_hash:
@@ -533,6 +647,8 @@ class Runner:
             time.sleep(min(self.poll_interval, max(0, deadline - time.monotonic())))
     def cancel(self, job_id):
         with self.job_mutex.held():
+            if self.admission.maintenance_blocked():
+                raise Conflict('recovery_maintenance')
             job = self.store.job(check_id(job_id))
             if job["state"] != "waiting":
                 return False
@@ -551,6 +667,10 @@ class Runner:
             future.set_result(None)
     def _schedule(self):
         while True:
+            if self.admission.maintenance_blocked() and not self.closed:
+                self.wake.wait(self.poll_interval)
+                self.wake.clear()
+                continue
             with self.job_mutex.held():
                 pending = tuple(self.pending.items())
             for job_id, deadline in pending:
@@ -567,11 +687,17 @@ class Runner:
                         continue
                     target = self.targets[job["target"]]
                     lease = self.admission.try_acquire(job_id, job["request_hash"],
-                                                       target.resources, target.name)
+                                                       target.resources, target.name, deadline=deadline)
                     if lease is None:
                         continue
                     with self.job_mutex.held():
                         self.pending.pop(job_id, None)
+                    if time.monotonic() >= deadline:
+                        lease.release({'completion_verified': True, 'cleanup_verified': True,
+                                       'policy': 'never_submitted'})
+                        lease.close()
+                        self._finish_pending(job_id, 'failed', 'resource_acquisition_timeout')
+                        continue
                     self.pool.submit(self._run_owned, job_id, lease, self.futures[job_id])
                 except Exception as exc:
                     try:
@@ -586,6 +712,8 @@ class Runner:
             self.wake.wait(self.poll_interval)
             self.wake.clear()
     def _run_owned(self, job_id, lease, future):
+        handoff = self.handoffs if lease.owner['target']=='wallpaper' else None
+        if handoff:handoff.enter(job_id,lease)
         try:
             if not future.set_running_or_notify_cancel():
                 lease.release({"completion_verified": True, "cleanup_verified": True,
@@ -595,14 +723,17 @@ class Runner:
             if self.recovery:
                 self.recovery.notify()
         except BaseException as exc:
-            future.set_exception(exc)
+            from .worker_handoff import WorkerHandoff
+            if isinstance(exc,WorkerHandoff):future.set_result(None)
+            else:future.set_exception(exc)
         else:
             future.set_result(None)
         finally:
             lease.close()
+            if handoff:handoff.exit(job_id,lease)
     def _work(self, job_id, lease):
         from .backends import CleanupPending, Uncertain
-        guard, cleanup_stage = None, None
+        guard, cleanup_stage, music = None, None, None
         def cleanup_details(exc):
             if cleanup_stage is None:
                 return {}
@@ -647,21 +778,47 @@ class Runner:
                 guard.mark_phase('owned_unload')
             else:
                 cleanup_stage = None
-            proof = backend.cleanup(execution, cleanup_deadline)
+            from .music_cleanup import music_guard
+            music = music_guard(self.admission, target, lease.owner,
+                self.recovery.observer if self.recovery else None,
+                lambda **fields: self._update(job_id, **fields))
+            if music:
+                music.prepare(cleanup_deadline)
+                proof = backend.cleanup(execution, cleanup_deadline, music_guard=music)
+                proof = dict(proof, music_release_idle=music.verify(cleanup_deadline))
+            else:
+                proof = backend.cleanup(execution, cleanup_deadline)
             if guard:
                 proof = dict(proof, physical_ollama_idle=guard.verify(cleanup_deadline))
             if proof.get("completion_verified") is not True or proof.get("cleanup_verified") is not True:
                 raise CleanupPending("cleanup_not_verified")
             cleanup_stage = None
+            if music:
+                music.recheck(cleanup_deadline)
+            if guard:
+                guard.commit_check(cleanup_deadline)
             result = {"value": execution.value, "media_type": execution.media_type,
                       "artifact_available": execution.artifact is not None}
             if execution.artifact is not None:
                 self.store.write_bytes("results/" + job_id + ".bin", execution.artifact)
             self.store.write("results/" + job_id + ".json", result)
+            if music:
+                music.recheck(cleanup_deadline)
+            if guard:
+                guard.commit_check(cleanup_deadline)
             # Result publication and positive cleanup proof precede resource handoff.
             self._update(job_id, state=("failed" if execution.error_code else "success"),
                          error_code=execution.error_code, cleanup_verified=True, cleanup_proof=proof)
-            lease.release(proof)
+            if music:
+                music.recheck(cleanup_deadline, terminal=True)
+            if music:
+                lease.release(proof, before_release=lambda: music.observe_release(cleanup_deadline),
+                              before_clear=lambda: music.release_binding(cleanup_deadline))
+            elif guard:
+                lease.release(proof, before_release=lambda: guard.commit_check(cleanup_deadline, terminal=True),
+                              validate_clear=lambda: guard.release_binding(cleanup_deadline))
+            else:
+                lease.release(proof)
         except CleanupPending as exc:
             if lease:
                 lease.mark("cleanup_pending")
@@ -679,13 +836,15 @@ class Runner:
             # clearing write reports failure after effect. If the old owner
             # remains, retain cleanup_pending instead of pretending handoff.
             current = self.store.job(job_id)
+            from .music_cleanup import failure_code
+            music_code = failure_code(exc) if music is not None else None
             if current["state"] in FINAL and current.get("cleanup_verified") is True:
                 owners = self.admission.snapshot()["owners"]
                 still_owned = lease and any(owners.get(r, {}).get("lease_id") ==
                                              lease.owner["lease_id"] for r in lease.resources)
                 if still_owned:
                     self._update(job_id, state="cleanup_pending",
-                                 error_code="ownership_release_unconfirmed")
+                                 error_code=music_code or "ownership_release_unconfirmed")
                 else:
                     self._update(job_id, publication_warning="ownership_release_sync_unconfirmed")
                 return
@@ -696,7 +855,8 @@ class Runner:
                     pass
             detail = cleanup_details(exc)
             self._update(job_id, state="reconciling",
-                         error_code=detail['ollama_cleanup_failure']['reason'] if detail else "supervision_or_storage_failure",
+                         error_code=(detail['ollama_cleanup_failure']['reason'] if detail else
+                                     music_code or "supervision_or_storage_failure"),
                          **detail,
                          **({'lifecycle_operator_error': str(exc)} if isinstance(exc, RecoveryRequired) and
                             self.store.job(job_id).get('wallpaper_lifecycle') else {}))
@@ -705,6 +865,22 @@ class Runner:
                 lease.close()
     def result(self, job_id):
         job = self.status(job_id)
+        if job.get('ollama_cleanup_context'):
+            future = self.futures.get(job_id)
+            if ((future is not None and not future.done()) or any(
+                    o.get('job_id') == job_id or o.get('lease_id') == job.get('lease_id')
+                    for o in self.admission.snapshot()['owners'].values())):
+                raise Conflict('ollama_result_ownership_not_released')
+        if job.get('music_cleanup_context'):
+            state = self.admission.snapshot()
+            future = self.futures.get(job_id)
+            if ((future is not None and not future.done()) or any(o['job_id'] == job_id for o in
+                                                        state['owners'].values()) or any(
+                    o.get('lease_id') == job.get('lease_id') for o in state['owners'].values())):
+                raise Conflict('music_result_ownership_not_released')
+            from .music_cleanup import result_released
+            if not result_released(job, state):
+                raise Conflict('music_release_receipt_unverified')
         if job.get('wallpaper_lifecycle'):
             future = self.futures.get(job_id)
             if ((future is not None and not future.done()) or any(o['job_id'] == job_id for o in

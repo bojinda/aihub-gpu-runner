@@ -12,7 +12,16 @@ class Application:
         authorization = next((v for k, v in headers.items() if k.lower() == "authorization"), "")
         return isinstance(authorization, str) and hmac.compare_digest(
             authorization.encode(), ("Bearer " + self.token).encode())
+    def authenticated_route(self, path, headers):
+        if path.startswith('/recovery-control/'):
+            control = getattr(self.runner, 'recovery_application', None)
+            return bool(control and control.authenticated(headers))
+        return self.authenticated(headers)
     def handle(self, method, path, headers, body=b""):
+        if path.startswith('/recovery-control/'):
+            control=getattr(self.runner,'recovery_application',None)
+            if control:return control.handle(method,path[len('/recovery-control'):],headers,body)
+            return 404,'application/json',encode({'error':'recovery_not_configured'})
         if not self.authenticated(headers):
             return 401, "application/json", encode({"error": "unauthorized"})
         if len(body) > self.max_request_bytes:
@@ -26,7 +35,7 @@ class Application:
                 return 202, "application/json", encode(self._status(job))
             if method == "GET" and path == "/resources":
                 state = self.runner.admission.snapshot()
-                return 200, "application/json", encode({"ready": state["ready"],
+                return 200, "application/json", encode({"ready": state["ready"] and not self.runner.admission.maintenance_blocked(),
                     "owners": {r: {"job_id": o["job_id"], "phase": o["phase"]}
                                for r, o in state["owners"].items()}})
             if method == 'GET' and path == '/recovery-summary':
@@ -70,14 +79,15 @@ class Application:
             result['state'] = 'cleanup_pending'
         return dict(result, resources_released=released, supervision_active=active)
 
-def serve(application, host="127.0.0.1", port=8790):
+def serve(application, host="127.0.0.1", port=8790, *, tls_context=None, started=None):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
         def process(self):
             self.connection.settimeout(10)
             headers = dict(self.headers)
-            if not application.authenticated(headers):
+            authenticated = getattr(application, 'authenticated_route', lambda path, h: application.authenticated(h))
+            if not authenticated(self.path, headers):
                 status, media, data = application.handle(self.command, self.path, headers)
             else:
                 try:
@@ -104,6 +114,9 @@ def serve(application, host="127.0.0.1", port=8790):
         do_POST = process
     server = ThreadingHTTPServer((host, port), Handler)
     try:
+        if tls_context is not None:
+            server.socket = tls_context.wrap_socket(server.socket, server_side=True)
+        if started is not None:started(server)
         server.serve_forever()
     finally:
         server.server_close()

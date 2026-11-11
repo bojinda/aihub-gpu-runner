@@ -1,4 +1,4 @@
-"""Local operator actions; no remote recovery endpoint, deployment or job trigger."""
+"""Local operator actions and the configured authenticated runner service."""
 import argparse
 import json
 import os
@@ -10,16 +10,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True)
     parser.add_argument("action", choices=("inspect", "bootstrap", "recover", "serve",
-                        "transition-scope", "dual-restore", "migrate-physical-locks",
+                        "transition-scope", "transition-recovery-gate", "dual-restore", "migrate-physical-locks",
                         "transition-wallpaper-workflow", "transition-wallpaper-conditioning",
                         "transition-wallpaper-on-demand",
-                        "authorize-recovery"))
+                        "authorize-recovery", "recover-reboot-contract"))
     parser.add_argument("--evidence-file")
     parser.add_argument("--job-id")
     parser.add_argument("--new-config")
     parser.add_argument("--rollback", action='store_true')
     parser.add_argument('--policy-file')
     parser.add_argument('--approval-ref')
+    parser.add_argument('--container-review-file')
     args = parser.parse_args()
     if args.action == 'migrate-physical-locks':
         if not args.new_config or not args.evidence_file or not args.job_id or args.rollback:
@@ -29,15 +30,16 @@ def main():
             evidence = strict_json(stream.read())
         print(json.dumps(migrate_physical_locks(args.config, args.new_config, args.job_id, evidence)))
         return
-    if args.action in ('transition-scope', 'transition-wallpaper-workflow', 'transition-wallpaper-conditioning',
+    if args.action in ('transition-scope', 'transition-recovery-gate', 'transition-wallpaper-workflow', 'transition-wallpaper-conditioning',
                        'transition-wallpaper-on-demand'):
         if not args.new_config or not args.evidence_file:
             parser.error('new config and local operator evidence required')
-        from .scope_transition import (transition_scope, transition_wallpaper_workflow,
+        from .scope_transition import (transition_scope, transition_recovery_gate, transition_wallpaper_workflow,
                                        transition_wallpaper_conditioning, transition_wallpaper_on_demand)
         with open(args.evidence_file, 'rb') as stream:
             evidence = strict_json(stream.read())
         transition = {'transition-scope': transition_scope,
+                      'transition-recovery-gate': transition_recovery_gate,
                       'transition-wallpaper-workflow': transition_wallpaper_workflow,
                       'transition-wallpaper-conditioning': transition_wallpaper_conditioning,
                       'transition-wallpaper-on-demand': transition_wallpaper_on_demand}[args.action]
@@ -56,6 +58,23 @@ def main():
             runner.close()
         return
     _, targets, admission = admission_from_config(args.config)
+    if args.action == 'recover-reboot-contract':
+        if (not args.evidence_file or not args.container_review_file or not args.job_id or
+                args.new_config or args.rollback or args.policy_file or args.approval_ref):
+            parser.error('exact job, operator evidence and private container review required; no policy override')
+        from .config import configured_backends
+        from .reboot_contract import recover_reboot_contract
+        with open(args.evidence_file, 'rb') as stream:
+            evidence = strict_json(stream.read())
+        with open(args.container_review_file, 'rb') as stream:
+            reviewed = strict_json(stream.read())
+        if isinstance(reviewed, list) and len(reviewed) == 1:
+            reviewed = reviewed[0]
+        if not isinstance(evidence, dict) or evidence.get('job_id') != args.job_id:
+            parser.error('job ID must match the exact approval')
+        print(json.dumps(recover_reboot_contract(admission, targets, configured_backends(targets),
+                                                evidence, reviewed)))
+        return
     if args.action == 'authorize-recovery':
         if not args.policy_file or not args.approval_ref:
             parser.error('reviewed recovery policy file and deployment approval reference required')
@@ -87,13 +106,7 @@ def main():
         if not args.job_id:
             parser.error("job ID is required")
         admission.recover(args.job_id, evidence)
-        job = admission.store.read(admission.store.job_name(args.job_id))
-        if job:
-            job.update(state="failed", error_code="operator_recovered_no_automatic_resubmission",
-                       updated_at=timestamp())
-            if job.get("host_stage") is True:
-                job["host_exit_code"] = 70
-            admission.store.put_job(job)
+        admission.finalize_recoveries(args.job_id)
     print(json.dumps({"recorded": args.action, "backend_action_performed": False}))
 
 if __name__ == "__main__":

@@ -108,6 +108,15 @@ do not turn an old executor's saturation into a false retained-lease report.
    A committed switch/audit is final even if old physical work continues. No
    automatic retries, second operation or old-success redirection in HA.
 
+HA uses a dedicated named E-stop action, ticket mode and pending-operation record;
+it must not repurpose the Wallpaper emergency control or an old Recover operation.
+Check and Verify must remain read-only with respect to authority. A frozen old
+Recover pending reference cannot be silently redirected to E-stop, nor can its
+historical success clear the E-stop reference. E1 must specify how an explicit
+global E-stop supersedes old fenced recovery authority without requiring the old
+workload to become idle. Display logical ownership/generation and NOT ASSERTED
+physical state independently, with the accepted overlap warning in confirmation.
+
 Crash windows to qualify in E1: before/after intent fsync; each file creation/file
 fsync; generation/parent fsync; ownership temporary write/file fsync/rename/root
 fsync; audit readback; lost HTTP response; process restart at each boundary. Every

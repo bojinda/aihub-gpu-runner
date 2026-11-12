@@ -231,6 +231,9 @@ class AtomicStore:
             return None
         job_id = Path(parts[1]).stem
         state = self._read_raw('ownership.json', {})
+        record = state.get('estop_revocations', {}).get(job_id)
+        if record or state.get('estop_format') != 2:
+            return record
         return self._job_revocation(state, job_id, self._read_raw(self.job_name(job_id)))
     def write_bytes(self, name, data):
         name = self.path(name).relative_to(self.root).as_posix()

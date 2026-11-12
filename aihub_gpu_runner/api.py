@@ -72,7 +72,8 @@ class Application:
         state = self.runner.admission.snapshot()
         # A cached terminal callback is not authority. Re-read the immutable raw
         # record through the current generation overlay before reporting success.
-        job = self.runner.store.job(job['request_id'])
+        if state.get('estop_format') == 2 or job['request_id'] in state.get('estop_revocations', {}):
+            job = self.runner.store.job(job['request_id'])
         released = state["ready"] and not active and not any(
             owner["job_id"] == job["request_id"] for owner in state["owners"].values())
         if job.get('authority_revoked'):

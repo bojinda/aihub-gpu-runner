@@ -336,15 +336,19 @@ class AtomicStore:
         values = []
         for path in sorted(self.path("jobs").glob("*.json")):
             value = self._read_raw(self.job_name(path.stem))
-            if value is None:
-                raise KeyError(path.stem)
             values.append((path.stem, value))
         # Apply one fresh authority snapshot AFTER collecting records, so a
         # revocation committed during collection masks even earlier raw reads.
         # No persistent cache, extra lock or caller-supplied authority snapshot.
         revoked = self._read_raw('ownership.json', {}).get('estop_revocations', {})
-        return [self._revoked_job(revoked[job_id]) if job_id in revoked else value
-                for job_id, value in values]
+        jobs = []
+        for job_id, value in values:
+            if job_id in revoked:
+                value = self._revoked_job(revoked[job_id])
+            if value is None:
+                raise KeyError(job_id)
+            jobs.append(value)
+        return jobs
 
 
 def lock_identity(stat_value):

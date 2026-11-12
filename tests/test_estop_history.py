@@ -76,6 +76,12 @@ class EstopHistoryTests(unittest.TestCase):
             ticket=f.control.check('admin'); f.control.execute(ticket['token'],'admin',True)
             for job in f.store.jobs():self.assertEqual(job,f.store.job(job['request_id']))
             self.assertTrue(f.store.job('retained')['authority_revoked'])
+            # The authoritative disposition also masks an absent raw value,
+            # just as the existing individual read does. Private history is
+            # never rewritten by the overlay itself.
+            f.store.path('jobs/retained.json').write_bytes(b'null')
+            bulk={j['request_id']:j for j in f.store.jobs()}
+            self.assertEqual(bulk['retained'],f.store.job('retained'))
 
     def test_invalid_and_missing_records_still_fail_closed(self):
         with history_fixture(count=4,authority_bytes=0) as f:

@@ -311,9 +311,7 @@ class AtomicStore:
         record = self._revocation(name)
         if record:
             if str(name).startswith('jobs/'):
-                return dict(record['job_before'], state='failed', host_exit_code=70,
-                    error_code='administrator_estop_no_replay', authority_revoked=True,
-                    resources_released=True, estop_operation=record['operation'], replayed=False,old_work_may_continue=True)
+                return self._revoked_job(record)
             return dict(value=None, artifact_available=False, authority_revoked=True,
                         error_code='administrator_estop_no_replay')
         return value
@@ -329,8 +327,24 @@ class AtomicStore:
         if state.get('schema') == 2 and not self.path(self.job_name(value['request_id'])).exists():
             value.setdefault('admission_generation', state['admission_generation']['id'])
         self.write(self.job_name(value["request_id"]), value)
+    @staticmethod
+    def _revoked_job(record):
+        return dict(record['job_before'], state='failed', host_exit_code=70,
+            error_code='administrator_estop_no_replay', authority_revoked=True,
+            resources_released=True, estop_operation=record['operation'], replayed=False,old_work_may_continue=True)
     def jobs(self):
-        return [self.job(path.stem) for path in sorted(self.path("jobs").glob("*.json"))]
+        values = []
+        for path in sorted(self.path("jobs").glob("*.json")):
+            value = self._read_raw(self.job_name(path.stem))
+            if value is None:
+                raise KeyError(path.stem)
+            values.append((path.stem, value))
+        # Apply one fresh authority snapshot AFTER collecting records, so a
+        # revocation committed during collection masks even earlier raw reads.
+        # No persistent cache, extra lock or caller-supplied authority snapshot.
+        revoked = self._read_raw('ownership.json', {}).get('estop_revocations', {})
+        return [self._revoked_job(revoked[job_id]) if job_id in revoked else value
+                for job_id, value in values]
 
 
 def lock_identity(stat_value):

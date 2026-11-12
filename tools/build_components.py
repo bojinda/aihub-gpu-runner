@@ -7,7 +7,7 @@ import argparse,base64,csv,hashlib,io,json,subprocess,zipfile
 from pathlib import Path
 
 COMPONENTS={
- 'runner':('aihub_gpu_runner','aihub-gpu-runner','0.2.0+estop.e1.20261111.1'),
+ 'runner':('aihub_gpu_runner','aihub-gpu-runner','0.2.0+estop.enumeration.20261112.1'),
  'host-sdk':('components/host-sdk/aihub_gpu_runner','aihub-gpu-runner','0.1.0+ha.recovery.completion.20261110.1'),
  'privileged-helper':('components/privileged-helper/aihub_gpu_runner','aihub-gpu-runner','0.1.0+helper.binding.correction.20261110.1'),
  'comfy-plugin':('components/comfy-plugin/_aihub_recovery_comfy','aihub-recovery-comfy','0.1.0+reconstructed.20261111'),

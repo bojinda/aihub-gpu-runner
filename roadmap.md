@@ -575,3 +575,19 @@ Implemented and qualified offline: same-journal generation/revision/revocation a
 The committed native build passes 852 runner executions (780 unique methods, zero errors/failures/skips), 32 browser-state tests, two actual HA Core/Media/Chromium E-stop scenarios, four actual Media integration scenarios and 16 real CPU ComfyUI scenarios with schema2 enabled. Companion suites: 697 meeting tests (11 optional/private-fixture skips), 170 Media tests and three Music tests. Three real HostStage resource cases also pass against the installed Python3.13 SDK. Initial dependency/fixture errors and their corrections are retained separately. See docs/estop-e1.md and the private release manifest for exact build/import origins, limitations and reproducibility.
 
 E1 implementation/offline qualification is ready for independent review, **not production-ready or review-accepted**. E2 installation and schema activation, E3 live confirmation, physical GPU behavior and E4 unattended acceptance remain pending. The fixed privileged helper's newly derived generation trust is tested; its full root-owned configured Docker capture/perform path has not been newly qualified here. It is not used by E-stop. The separate disabled unknown-history ordinary-Recover proposal remains unapproved and is included unchanged in the private return packet.
+
+### E3 targeted performance checkpoint
+
+The operator subsequently authorized and completed the E2 coordinated installation;
+the earlier pending E2 statements above describe the historical offline checkpoint.
+The first E3 confirmations prepared intents/lock namespaces without committing a
+generation change. A bounded installed scan confirmed history enumeration exceeds
+the three-second transaction budget because authority was reparsed per job.
+An isolated production-sized fixture reproduces `estop_commit_deadline`.
+
+The targeted candidate uses one fresh authority read after collecting job records;
+it preserves all revocation overlays and the existing transaction deadline, signing,
+atomic commit and Verify behavior. See [mechanism, tests and deployment boundary](docs/estop-history-enumeration.md).
+Offline tests and committed builds do not authorize installation or another E-stop.
+Stop for candidate review before a CPU-only attended replacement; E3 live acceptance
+and E4 unattended operation remain **HOLD** until separately established.

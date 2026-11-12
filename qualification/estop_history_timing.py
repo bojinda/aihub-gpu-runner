@@ -1,45 +1,31 @@
-"""Disposable CPU history reproduction; never reads production state or uses GPUs.
-
-Run with the desired installed wheel's Python -I -B and this absolute script path.
-Synthetic record structure approximates size/count, not historical process proof.
-"""
-import collections
-import hashlib
-import inspect
-import json
+"""CPU-only compact authority / historical-size latency. No production inputs."""
+import json,os,sys,time
 from pathlib import Path
-import sys
-import time
-
-import aihub_gpu_runner.core as core
+from unittest.mock import patch
+import aihub_gpu_runner
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from tests.estop_history_fixture import history_fixture
+from aihub_gpu_runner.core import NativeLock
 
-
-def main():
-    with history_fixture() as f:
-        raw=f.store.path('ownership.json').read_bytes()
-        counts=collections.Counter(); original=f.store._read_raw
-        def read(name,default=None):
-            counts[str(name) if str(name)=='ownership.json' else 'other']+=1
-            return original(name,default)
-        f.store._read_raw=read
-        begin=time.monotonic(); check=f.control.check('admin'); check_seconds=time.monotonic()-begin
-        check_reads=dict(counts); counts.clear(); phases={}
-        begin=time.monotonic()
-        f.control.fault=lambda phase:phases.setdefault(phase,time.monotonic()-begin)
-        try:result=f.control.execute(check['token'],'admin',True)
-        except core.RecoveryRequired as exc:result={'refusal':str(exc)}
-        execute_seconds=time.monotonic()-begin
-        state=f.admission.snapshot()
-        print(json.dumps(dict(python=sys.version,core_origin=inspect.getfile(core),
-            core_sha256=hashlib.sha256(Path(inspect.getfile(core)).read_bytes()).hexdigest(),
-            synthetic=True,jobs=len(list((f.root/'jobs').glob('*.json'))),authority_bytes=len(raw),
-            check_seconds=check_seconds,check_reads=check_reads,execute_seconds=execute_seconds,
-            execute_reads=dict(counts),phases_seconds=phases,result=result,
-            generation_sequence=state['admission_generation']['sequence'],
-            intents=len(state['estop_intents']),commits=len(state['estop_attempts']),
-            revocations=len(state['estop_revocations']),verify=f.control.verify(check['operation'])),indent=2))
-
-
-if __name__=='__main__':main()
+rows=[]
+for count in (4,5000):
+ with history_fixture(count=count) as f:
+  times=[];sizes=[];reads=[];original=f.store._read_raw
+  def read(name,default=None):reads.append(str(name));return original(name,default)
+  before={p:p.read_bytes() for p in (f.root/'jobs').glob('*.json')}
+  with patch.object(f.store,'jobs',side_effect=AssertionError('historical scan forbidden')),patch.object(f.store,'_read_raw',side_effect=read):
+   results=[]
+   for _ in range(2):
+    start=time.perf_counter();results.append(f.control.execute('admin'));times.append(time.perf_counter()-start)
+    sizes.append(f.store.path('ownership.json').stat().st_size)
+  assert all(r['outcome']=='success' for r in results)
+  assert [r['released_leases'] for r in results]==[1,0]
+  assert abs(sizes[1]-sizes[0])<=20
+  assert 'recovery-control.json' not in reads
+  assert {p:p.read_bytes() for p in before}==before
+  fresh=f.admission.try_acquire('fresh','fresh',('gpu1',),'fixture');assert fresh is not None
+  fresh.release({'completion_verified':True,'cleanup_verified':True});fresh.close()
+  rows.append(dict(job_count=count,compaction=f.compaction,compaction_seconds=f.compaction_seconds,
+                   execute_seconds=times,authority_sizes=sizes,job_reads=sum(n.startswith('jobs/') for n in reads),
+                   authority_reads=reads.count('ownership.json'),immediate_admission=True,production_actions=0))
+print(json.dumps({'origin':aihub_gpu_runner.__file__,'scenarios':rows},indent=2))

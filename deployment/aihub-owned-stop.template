@@ -1,0 +1,10 @@
+#!/usr/bin/python3 -I
+"""Render the two pins from the reviewed release manifest; fixed helper behavior."""
+import hashlib,sys
+from pathlib import Path
+p=Path('@REVIEWED_WHEEL_PATH@')
+if hashlib.sha256(p.read_bytes()).hexdigest()!='@REVIEWED_WHEEL_SHA256@':
+    raise SystemExit('reviewed_runner_wheel_changed')
+sys.path.insert(0,str(p))
+from aihub_gpu_runner.owned_stop_helper import main
+main()

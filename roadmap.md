@@ -614,3 +614,31 @@ schedules OFF and preserve retained ownership until separately authorized action
 Acceptance still requires ordinary Ollama automatic release, a complete **fresh**
 Wallpaper workflow with automatic release, unchanged ToDo cache reuse, and the
 existing five eligible production days. E-stop success does not satisfy those gates.
+
+### Revised operator decision — one-click E-stop, November 12
+
+This supersedes the E-stop Check/ticket/confirmation/intent/Verify requirements
+above. Ordinary Recover/Emergency retain their own confirmation and Verify rules.
+One active HA administrator clicks **E-STOP**: one authenticated request immediately
+rotates coordination generation and relinquishes both logical GPU owners, without
+any backend cleanup, process stop, unload or GPU-idle prerequisite. Continued GPU
+overlap is accepted. SUCCESS/FAILURE/UNKNOWN are distinct; UNKNOWN never retries.
+
+Keep one atomic authority replacement, immutable original locks, stale-writer and
+result fences and nonblocking executor rotation. No historical job scan, signed
+E-stop ticket, pending browser operation, or copied job/maintenance payload belongs
+in this path. The active E-stop record is one compact last-result line. Old
+nonterminal work is fenced by its generation; sparse metadata protects terminal
+jobs whose ownership was still retained. Do not discard that necessary exception.
+
+The separate installation-only compaction removes E-stop snapshots/intents from
+active authority while preserving all non-E-stop fields, current generation/lease,
+existing revocations, original jobs/results and the unrelated maintenance journal.
+Use a verified rollback copy and coordinated upgrade of every native writer before
+restart. Never compact on startup or as a side effect of the button.
+
+See [one-click contract and qualification](docs/estop-one-click.md). Implementation,
+offline tests and publication are authorized; production installation, compaction,
+E-stop execution and schedule changes remain **HOLD for independent review**.
+Ordinary cleanup/Wallpaper automatic release and five eligible production days
+remain separate acceptance gates. Both held HA schedules remain OFF.

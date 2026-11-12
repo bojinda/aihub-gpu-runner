@@ -8,7 +8,7 @@ import threading
 import uuid
 
 from aihub_gpu_runner.core import Admission, AtomicStore, encode
-from aihub_gpu_runner.estop import Estop, activate_generations
+from aihub_gpu_runner.estop import Estop, activate_generations, compact_history
 
 
 @contextlib.contextmanager
@@ -38,6 +38,7 @@ def history_fixture(count=1798, authority_bytes=1463844):
             store.put_job(dict(request_id='waiting', request_hash='synthetic-waiting', state='waiting',
                                resources=['gpu1'], target='fixture'))
             state = admission.snapshot()
+            state.pop('estop_format');state.pop('estop_last');state['estop_intents']={};state['estop_attempts']={}
             # Three previous no-effect attempts and their prepared lock files stay present.
             for number in range(3):
                 op = f'{number:032x}'; new = uuid.uuid4().hex
@@ -52,7 +53,14 @@ def history_fixture(count=1798, authority_bytes=1463844):
             state['qualification_padding'] = ''
             missing = authority_bytes-len(encode(state))
             if missing > 0:state['qualification_padding'] = 'x'*missing
-            store.write('ownership.json',state)
+            state['estop_attempts']['committed']={'committed_at':1,'revoked_leases':1,'maintenance_before':{'synthetic':'x'*15_652_917}}
+            store.path('ownership.json').write_bytes(encode(state))
+            backup=root/'rollback.json';backup.write_bytes(store.path('ownership.json').read_bytes())
+            import hashlib
+            import time
+            started=time.perf_counter()
+            compacted=compact_history(admission,backup,hashlib.sha256(backup.read_bytes()).hexdigest(),confirmed_stopped=True)
+            compaction_seconds=time.perf_counter()-started
             class Capacity:
                 def __init__(self):
                     self.admission=admission; self.store=store; self.wake=threading.Event()
@@ -62,6 +70,7 @@ def history_fixture(count=1798, authority_bytes=1463844):
                 def _retire_executor(self,group):raise AssertionError('fixture_has_no_executor')
             runner = Capacity()
             yield SimpleNamespace(root=root, store=store, admission=admission, lease=lease,
-                                  control=Estop(runner,b'synthetic-key'*4), runner=runner)
+                                  control=Estop(runner), runner=runner,compaction=compacted,
+                                  compaction_seconds=compaction_seconds)
         finally:
             lease.close()

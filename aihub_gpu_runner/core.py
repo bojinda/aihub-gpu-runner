@@ -216,13 +216,22 @@ class AtomicStore:
         else:
             with NativeLock(path).held():
                 yield
+    @staticmethod
+    def _job_revocation(state, job_id, value):
+        record = state.get('estop_revocations', {}).get(job_id)
+        if record:
+            return record
+        if (state.get('estop_format') == 2 and value and value.get('state') not in FINAL and
+                value.get('admission_generation') != state['admission_generation']['id']):
+            return dict(operation='generation_revoked', lease_id=value.get('lease_id'))
+
     def _revocation(self, name):
         parts = Path(name).parts
         if len(parts) != 2 or parts[0] not in ('jobs', 'results'):
             return None
         job_id = Path(parts[1]).stem
         state = self._read_raw('ownership.json', {})
-        return state.get('estop_revocations', {}).get(job_id)
+        return self._job_revocation(state, job_id, self._read_raw(self.job_name(job_id)))
     def write_bytes(self, name, data):
         name = self.path(name).relative_to(self.root).as_posix()
         if name == 'ownership.json':
@@ -233,6 +242,10 @@ class AtomicStore:
                 state = self._read_raw('ownership.json')
                 if self._revocation(name):
                     raise RecoveryRequired('job_authority_revoked')
+                if str(name).startswith(('jobs/', 'results/')) and state.get('estop_format') == 2:
+                    old = self._read_raw(self.job_name(Path(name).stem))
+                    if old and old.get('admission_generation') != state['admission_generation']['id']:
+                        raise RecoveryRequired('stale_job_generation')
                 if str(name).startswith('jobs/'):
                     value = strict_json(data)
                     g = state['admission_generation']['id']
@@ -258,6 +271,16 @@ class AtomicStore:
                 if value.get('schema') != 2 or value.get('authority_revision') != current['authority_revision']:
                     raise RecoveryRequired('stale_authority_revision')
                 switching = getattr(self._write_context, 'generation_switch', False)
+                compacting = getattr(self._write_context, 'estop_compaction', False)
+                if compacting:
+                    from .estop import compact_state
+                    if value != compact_state(current):
+                        raise RecoveryRequired('estop_compaction_payload_changed')
+                elif current.get('estop_format') == 2:
+                    if value.get('estop_format') != 2:
+                        raise RecoveryRequired('stale_estop_format')
+                    if not switching and value.get('estop_last') != current.get('estop_last'):
+                        raise RecoveryRequired('estop_record_changed')
                 if not switching and value.get('admission_generation') != current['admission_generation']:
                     raise RecoveryRequired('stale_authority_generation')
                 if switching and (value['admission_generation']['origin'] != current['admission_generation']['origin'] or
@@ -267,7 +290,11 @@ class AtomicStore:
                     if (owner.get('admission_generation') != value['admission_generation']['id'] or
                             owner.get('job_id') in current.get('estop_revocations', {})):
                         raise RecoveryRequired('revoked_owner_cannot_be_restored')
-                for name in ('estop_revocations', 'estop_attempts', 'estop_intents'):
+                    job = self._read_raw(self.job_name(owner['job_id']), {})
+                    if current.get('estop_format') == 2 and job and job.get('admission_generation') != value['admission_generation']['id']:
+                        raise RecoveryRequired('revoked_owner_cannot_be_restored')
+                names = ('estop_revocations',) if current.get('estop_format') == 2 else ('estop_revocations', 'estop_attempts', 'estop_intents')
+                for name in (() if compacting else names):
                     if any(value.get(name, {}).get(k) != v for k, v in current.get(name, {}).items()):
                         raise RecoveryRequired('estop_history_changed')
                 value = dict(value, authority_revision=current['authority_revision'] + 1)
@@ -311,7 +338,7 @@ class AtomicStore:
         record = self._revocation(name)
         if record:
             if str(name).startswith('jobs/'):
-                return self._revoked_job(record)
+                return self._revoked_job(record, value)
             return dict(value=None, artifact_available=False, authority_revoked=True,
                         error_code='administrator_estop_no_replay')
         return value
@@ -328,8 +355,15 @@ class AtomicStore:
             value.setdefault('admission_generation', state['admission_generation']['id'])
         self.write(self.job_name(value["request_id"]), value)
     @staticmethod
-    def _revoked_job(record):
-        return dict(record['job_before'], state='failed', host_exit_code=70,
+    def _revoked_job(record, value=None):
+        original = record.get('job_before', value)
+        if not isinstance(original, dict):
+            raise RecoveryRequired('revoked_job_original_unavailable')
+        if record.get('request_hash') and original.get('request_hash') != record['request_hash']:
+            raise RecoveryRequired('revoked_job_binding_changed')
+        if record.get('job_sha256') and hashlib.sha256(encode(original)).hexdigest() != record['job_sha256']:
+            raise RecoveryRequired('revoked_job_original_changed')
+        return dict(original, state='failed', host_exit_code=70,
             error_code='administrator_estop_no_replay', authority_revoked=True,
             resources_released=True, estop_operation=record['operation'], replayed=False,old_work_may_continue=True)
     def jobs(self):
@@ -340,11 +374,12 @@ class AtomicStore:
         # Apply one fresh authority snapshot AFTER collecting records, so a
         # revocation committed during collection masks even earlier raw reads.
         # No persistent cache, extra lock or caller-supplied authority snapshot.
-        revoked = self._read_raw('ownership.json', {}).get('estop_revocations', {})
+        state = self._read_raw('ownership.json', {})
         jobs = []
         for job_id, value in values:
-            if job_id in revoked:
-                value = self._revoked_job(revoked[job_id])
+            record = self._job_revocation(state, job_id, value)
+            if record:
+                value = self._revoked_job(record, value)
             if value is None:
                 raise KeyError(job_id)
             jobs.append(value)
@@ -415,8 +450,9 @@ class Admission:
     def _validate(self, state):
         if isinstance(state, dict) and state.get('schema') == 2:
             self.lock_paths = generation_paths(state, self.store.root, self.original_lock_paths)
+            keys = ('estop_revocations',) if state.get('estop_format') == 2 else ('estop_intents','estop_attempts','estop_revocations')
             if type(state.get('authority_revision')) is not int or state['authority_revision']<0 or any(
-                    not isinstance(state.get(k),dict) for k in ('estop_intents','estop_attempts','estop_revocations')):
+                    not isinstance(state.get(k),dict) for k in keys):
                 raise RecoveryRequired('generation_journal_invalid')
         if (not isinstance(state, dict) or state.get("schema") not in (1, 2) or
                 state.get("scope") != self.scope or type(state.get("ready")) is not bool or

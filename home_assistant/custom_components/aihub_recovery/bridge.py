@@ -2,6 +2,7 @@
 import json
 import ipaddress
 import ssl
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -37,9 +38,9 @@ class Bridge:
             urllib.request.HTTPSHandler(context=ctx), NoRedirect())
 
     def request(self, action, actor, payload=None):
-        if action not in ('status', 'check', 'check-emergency', 'check-abort', 'recover', 'emergency', 'abort', 'verify','estop-status','estop-check','estop','estop-verify'):
+        if action not in ('status', 'check', 'check-emergency', 'check-abort', 'recover', 'emergency', 'abort', 'verify','estop-status','estop'):
             raise ValueError('action_not_allowed')
-        write = action in ('recover', 'emergency', 'abort', 'verify','estop','estop-verify')
+        write = action in ('recover', 'emergency', 'abort', 'verify','estop')
         key = 'operate_token' if write else 'read_token'
         req = urllib.request.Request(self.url+'/'+action,
             data=json.dumps(payload).encode() if write else None, method='POST' if write else 'GET',
@@ -60,6 +61,18 @@ class Bridge:
             value = json.loads(data)
             if not isinstance(value, dict):
                 raise ValueError('invalid_backend_response')
+            if action == 'estop':
+                if value.get('outcome') == 'unknown':
+                    code=value.get('error')
+                    value = dict(timestamp=time.time(),outcome='unknown',released_leases=None,
+                                 error=code if code in {'estop_commit_outcome_unknown','estop_authority_unavailable','runner_response_unavailable_no_retry'} else 'response_unavailable_no_retry')
+                elif 'outcome' not in value:
+                    rejected = response.status in (400,401,403,404,413)
+                    code = value.get('error')
+                    allowed = {'unauthorized','operate_capability_required','operator_identity_required',
+                               'request_too_large','unsupported_recovery_action','invalid_request'}
+                    value = dict(timestamp=time.time(),outcome='failure' if rejected else 'unknown',released_leases=0 if rejected else None,
+                                 error=code if code in allowed else 'request_rejected' if rejected else 'response_unavailable_no_retry')
             return value
 
 
@@ -71,16 +84,16 @@ async def dispatch(hass, connection, msg):
         return
     action = msg.get('action')
     keys = {'id', 'type', 'action'}
-    if action in ('recover', 'emergency', 'abort','estop'):
+    if action in ('recover', 'emergency', 'abort'):
         keys |= {'token', 'confirmed'}
         if action in ('recover','emergency') and 'accept_work_loss' in msg:
             keys.add('accept_work_loss')
-    elif action in ('verify','estop-verify'):
+    elif action in ('verify',):
         keys |= {'operation'}
-    if set(msg) != keys or action not in ('status', 'check', 'check-emergency', 'check-abort', 'recover', 'emergency', 'abort', 'verify','estop-status','estop-check','estop','estop-verify'):
+    if set(msg) != keys or action not in ('status', 'check', 'check-emergency', 'check-abort', 'recover', 'emergency', 'abort', 'verify','estop-status','estop'):
         connection.send_error(msg['id'], 'invalid_request', 'Unsupported recovery request.')
         return
-    if action in ('recover', 'emergency', 'abort','estop') and (msg['confirmed'] is not True or
+    if action in ('recover', 'emergency', 'abort') and (msg['confirmed'] is not True or
             not isinstance(msg['token'], str) or len(msg['token']) > 8192):
         connection.send_error(msg['id'], 'invalid_request', 'Exact confirmation is required.')
         return
@@ -88,7 +101,7 @@ async def dispatch(hass, connection, msg):
             action == 'emergency' and msg.get('accept_work_loss') is not True):
         connection.send_error(msg['id'], 'invalid_request', 'Explicit work-loss acceptance is required.')
         return
-    if action in ('verify','estop-verify') and (not isinstance(msg['operation'], str) or len(msg['operation']) > 64):
+    if action in ('verify',) and (not isinstance(msg['operation'], str) or len(msg['operation']) > 64):
         connection.send_error(msg['id'], 'invalid_request', 'Invalid operation.')
         return
     payload = {k: msg[k] for k in keys-{'id', 'type', 'action'}}
@@ -98,4 +111,5 @@ async def dispatch(hass, connection, msg):
     except Exception:
         # No retries; a timed-out POST may already have committed.
         connection.send_error(msg['id'], 'backend_unavailable',
-            'Recovery state unavailable. Use Verify interrupted operation; do not repeat Recover.')
+            ('E-STOP UNKNOWN; response unavailable. Do not automatically retry.' if action=='estop' else
+             'Recovery state unavailable. Use Verify interrupted operation; do not repeat Recover.'))

@@ -39,9 +39,8 @@ def stale_writer(root):
 def crash_writer(root,phase):
     root=Path(root);assert root.name.startswith('estop-v2-')
     store=AtomicStore(root);a=Admission(store,{r:root/'physical-locks'/(r+'.lock') for r in ('gpu0','gpu1')},'synthetic',True)
-    ticket=(root/'ticket').read_text()
-    control=Estop(SimpleNamespace(admission=a,store=store),b'fixture-key'*4,fault=lambda p:os._exit(9) if p==phase else None)
-    control.execute(ticket,'admin',True)
+    control=Estop(SimpleNamespace(admission=a,store=store),fault=lambda p:os._exit(9) if p==phase else None)
+    control.execute('admin')
 
 def hold_coordination(root,name):
     root=Path(root);assert root.name.startswith('estop-v2-') and name in ('jobs.lock','admission.lock')
@@ -58,27 +57,27 @@ class EstopTests(unittest.TestCase):
         self.a.bootstrap(dict(approval_ref='fixture',bootstrap_id=self.a.snapshot()['bootstrap_id'],backend_quiescent=True,cleanup_verified=True))
         activate_generations(self.a,confirmed_coordinated_shutdown=True)
         self.runner=Runner(self.a,{}, {},workers=2,poll_interval=.005);self.addCleanup(self.runner.close)
-        self.control=Estop(self.runner,b'fixture-key'*4)
+        self.control=Estop(self.runner)
     def owned(self,resources=('gpu1',),name='job',phase='running'):
         self.store.put_job(dict(request_id=name,request_hash='payload',resources=list(resources),state=phase,target='fixture'))
         lease=self.a.try_acquire(name,'payload',resources,'fixture');self.assertIsNotNone(lease);self.addCleanup(lease.close)
         job=self.store.job(name);job['lease_id']=lease.owner['lease_id'];self.store.put_job(job)
         return lease
     def execute(self):
-        c=self.control.check('admin');return self.control.execute(c['token'],'admin',True)
+        return self.control.execute('admin')
     def test_gpu0_gpu1_and_pair_release_without_unlocking_old_fd(self):
         for resources in (('gpu0',),('gpu1',),('gpu0','gpu1')):
-            lease=self.owned(resources,name='job'+str(len(self.a.snapshot()['estop_attempts'])))
+            lease=self.owned(resources,name='job'+str(self.a.snapshot()['admission_generation']['sequence']))
             paths=dict(self.a.lock_paths);before={r:p.stat().st_ino for r,p in paths.items()}
-            result=self.execute();self.assertTrue(result['verified']);self.assertEqual(result['backend_operations'],0)
+            result=self.execute();self.assertEqual(result['outcome'],'success')
             for r in resources:
                 probe=NativeLock(paths[r],create=False);self.assertFalse(probe.acquire(0));self.assertEqual(paths[r].stat().st_ino,before[r])
-            fresh=self.a.try_acquire('fresh'+str(len(self.a.snapshot()['estop_attempts'])),'p',resources,'fixture')
+            fresh=self.a.try_acquire('fresh'+str(self.a.snapshot()['admission_generation']['sequence']),'p',resources,'fixture')
             self.assertIsNotNone(fresh);fresh.release({'completion_verified':True,'cleanup_verified':True});fresh.close();lease.close()
     def test_owner_free_always_rotates_even_with_unrecorded_current_lock(self):
         p=self.a.lock_paths['gpu1'];lock=NativeLock(p,create=False);self.assertTrue(lock.acquire(0));self.addCleanup(lock.close)
         g=self.a.snapshot()['admission_generation']['id'];r=self.execute()
-        self.assertEqual(r['revoked_leases'],0);self.assertNotEqual(r['new_generation'],g)
+        self.assertEqual(r['released_leases'],0);self.assertNotEqual(self.a.snapshot()['admission_generation']['id'],g)
         self.assertFalse(NativeLock(p,create=False).acquire(0));fresh=self.a.try_acquire('fresh','p',('gpu1',),'fixture');self.assertIsNotNone(fresh);fresh.close()
     def test_raw_updated_writes_and_result_reads_cannot_restore_revoked_success(self):
         self.owned();old=self.a.snapshot();job=self.store.job('job')
@@ -116,62 +115,24 @@ class EstopTests(unittest.TestCase):
             self.store.write('results/'+name+'.json',dict(value='before',artifact_available=True,media_type='application/octet-stream'))
             self.store.write_bytes('results/'+name+'.bin',b'before')
             entered=threading.Event();finish=threading.Event();attempt=threading.Event()
-            checked=self.control.check('admin');original=self.runner._result_locked
+            original=self.runner._result_locked
             def paused(job_id):
                 entered.set();self.assertTrue(finish.wait(3));return original(job_id)
             def stop():
-                attempt.set();return self.control.execute(checked['token'],'admin',True)
+                attempt.set();return self.control.execute('admin')
             with concurrent.futures.ThreadPoolExecutor(2) as pool,patch.object(self.runner,'_result_locked',paused):
                 reading=pool.submit(getattr(self.runner,edge),name);self.assertTrue(entered.wait(2))
                 stopping=pool.submit(stop);self.assertTrue(attempt.wait(2));time.sleep(.05)
                 self.assertFalse(stopping.done());finish.set();value=reading.result(2)
-                self.assertTrue(stopping.result(3)['verified'])
+                self.assertEqual(stopping.result(3)['outcome'],'success')
             self.assertEqual(value['state'] if edge=='result' else value[0],'success' if edge=='result' else b'before')
             self.assertEqual(self.runner.result(name)['state'],'failed')
             with self.assertRaises(KeyError):self.runner.artifact(name)
     def test_waiting_and_retained_terminal_owners_are_abandoned_without_replay(self):
         self.owned(phase='success')
         self.store.put_job(dict(request_id='waiting',request_hash='w',state='waiting',resources=['gpu0'],target='fixture'))
-        r=self.execute();self.assertEqual(r['revoked_requests'],2)
+        r=self.execute();self.assertEqual(r['released_leases'],1)
         self.assertTrue(all(j['authority_revoked'] and j['state']=='failed' for j in self.store.jobs()))
-    def test_stale_confirmation_and_duplicate_post_single_audit(self):
-        c=self.control.check('admin');self.owned()
-        with self.assertRaisesRegex(RecoveryRequired,'stale_estop_binding'):self.control.execute(c['token'],'admin',True)
-        c=self.control.check('admin');r=self.control.execute(c['token'],'admin',True)
-        with self.assertRaisesRegex(RecoveryRequired,'duplicate'):self.control.execute(c['token'],'admin',True)
-        self.assertEqual(self.control.verify(r['operation'])['new_generation'],r['new_generation'])
-        self.assertEqual(len(self.a.snapshot()['estop_attempts']),1)
-    def test_concurrent_distinct_confirmations_cannot_commit_same_binding_twice(self):
-        cs=[self.control.check('admin') for _ in range(2)]
-        def run(c):
-            try:return self.control.execute(c['token'],'admin',True)['result']
-            except RecoveryRequired:return 'stale'
-        with concurrent.futures.ThreadPoolExecutor(2) as pool:results=list(pool.map(run,cs))
-        self.assertEqual(sorted(results),['ownership_relinquished','stale']);self.assertEqual(len(self.a.snapshot()['estop_attempts']),1)
-    def test_failure_phases_have_exact_verify_and_no_duplicate_mutation(self):
-        for phase in ('intent_persisted','gpu0_prepared','gpu1_prepared','namespace_durable','before_commit','authority_committed'):
-            c=self.control.check('admin');old=self.a.snapshot()['admission_generation']['id']
-            def fault(p):
-                if p==phase:raise OSError('synthetic failure')
-            self.control.fault=fault
-            r=self.control.execute(c['token'],'admin',True);self.assertEqual(r['result'],'uncertain')
-            v=self.control.verify(c['operation'])
-            self.assertEqual(v['result'],'ownership_relinquished' if phase=='authority_committed' else 'not_committed')
-            self.assertEqual(self.a.snapshot()['admission_generation']['id']==old,phase!='authority_committed')
-            before=self.store.path('ownership.json').read_bytes();self.control.verify(c['operation']);self.assertEqual(self.store.path('ownership.json').read_bytes(),before)
-            with self.assertRaisesRegex(RecoveryRequired,'duplicate'):self.control.execute(c['token'],'admin',True)
-        self.control.fault=lambda p:None
-    def test_rename_after_effect_error_is_verified_not_replayed(self):
-        real=os.replace;writes=[]
-        def replace(src,dst):
-            real(src,dst)
-            if str(dst).endswith('ownership.json'):
-                writes.append(1)
-                if len(writes)==2:raise OSError('lost directory flush acknowledgement')
-        c=self.control.check('admin')
-        with patch('os.replace',side_effect=replace):r=self.control.execute(c['token'],'admin',True)
-        self.assertEqual(r['result'],'uncertain');self.assertEqual(self.control.verify(c['operation'])['result'],'ownership_relinquished')
-        self.assertEqual(len(self.a.snapshot()['estop_attempts']),1)
     def test_existing_recovery_fences_are_historical_not_new_generation_blocks(self):
         with self.a.mutex.held():
             s=self.a.snapshot();s['practical_control']=dict(admission='closed',active='old-op',attempts={'old-op':{'status':'uncertain'}});self.store.write('ownership.json',s)
@@ -179,13 +140,6 @@ class EstopTests(unittest.TestCase):
         self.assertTrue(self.a.maintenance_blocked());self.execute();self.assertFalse(self.a.maintenance_blocked())
         self.assertEqual(self.a.snapshot()['practical_control']['attempts']['old-op']['status'],'uncertain')
         self.assertEqual(self.store._read_raw('recovery-control.json')['mode'],'closed')
-    def test_changed_boot_actor_and_confirmation_are_refused(self):
-        c=self.control.check('admin')
-        with self.assertRaises(RecoveryRequired):self.control.execute(c['token'],'other',True)
-        with self.assertRaises(RecoveryRequired):self.control.execute(c['token'],'admin',False)
-        original=self.a.boot_reader;self.a.boot_reader=lambda:'different'
-        with self.assertRaises(RecoveryRequired):self.control.execute(c['token'],'admin',True)
-        self.a.boot_reader=original
     def test_real_busy_mutex_is_named_bounded_and_releases_prefix(self):
         for name in ('jobs.lock','admission.lock'):
             for f in ('holder-ready','release-holder'):
@@ -193,20 +147,10 @@ class EstopTests(unittest.TestCase):
             p=subprocess.Popen([sys.executable,str(Path(__file__).resolve()),'--hold-coordination',str(self.root),name])
             try:
                 wait_for(lambda:(self.root/'holder-ready').exists());before=self.store.path('ownership.json').read_bytes();start=time.monotonic()
-                with self.assertRaisesRegex(RecoveryRequired,'estop_jobs_busy' if name=='jobs.lock' else 'estop_admission_busy'):self.control.check('admin')
-                self.assertLess(time.monotonic()-start,4.5);self.assertEqual(self.store.path('ownership.json').read_bytes(),before)
+                result=self.control.execute('admin');self.assertEqual(result['outcome'],'failure');self.assertEqual(result['error'],'estop_jobs_busy' if name=='jobs.lock' else 'estop_admission_busy')
+                self.assertLess(time.monotonic()-start,6.5);self.assertEqual(self.store.path('ownership.json').read_bytes(),before)
             finally:(self.root/'release-holder').touch();self.assertEqual(p.wait(10),0)
             probe=NativeLock(self.root/'jobs.lock');self.assertTrue(probe.acquire(0));probe.close()
-    def test_expired_or_modified_ticket_and_verify_do_not_mutate(self):
-        self.control.clock=lambda:0;c=self.control.check('admin');self.control.clock=lambda:61
-        before=self.store.path('ownership.json').read_bytes()
-        with self.assertRaises(RecoveryRequired):self.control.execute(c['token'],'admin',True)
-        with self.assertRaises(RecoveryRequired):self.control.execute(c['token']+'x','admin',True)
-        self.assertTrue(self.control.verify('0'*32)['verified_no_effect'])
-        self.assertEqual(self.store.path('ownership.json').read_bytes(),before)
-    def test_phase_progress_does_not_invalidate_exact_lease_approval(self):
-        lease=self.owned();c=self.control.check('admin');lease.mark('cleanup_pending')
-        result=self.control.execute(c['token'],'admin',True);self.assertEqual(result['revoked_leases'],1)
     def test_activation_refuses_live_supervisor_host_or_original_resource_lock(self):
         for name in ('supervisor.lock','host-fixture.lock','physical-locks/gpu0.lock'):
             with tempfile.TemporaryDirectory(prefix='estop-activation-') as tmp:
@@ -228,13 +172,6 @@ class EstopTests(unittest.TestCase):
         finally:
             (self.root/'write-now').touch()
             if p.poll() is None:p.wait(10)
-    def test_actual_process_exit_before_and_after_commit_is_verified(self):
-        for phase in ('namespace_durable','authority_committed'):
-            c=self.control.check('admin');(self.root/'ticket').write_text(c['token'])
-            p=subprocess.Popen([sys.executable,str(Path(__file__).resolve()),'--crash-writer',str(self.root),phase])
-            self.assertEqual(p.wait(10),9)
-            result=self.control.verify(c['operation'])
-            self.assertEqual(result['result'],'not_committed' if phase=='namespace_durable' else 'ownership_relinquished')
     def test_real_runner_fresh_work_finishes_while_revoked_work_keeps_running(self):
         from aihub_gpu_runner.backends import Target,Execution
         self.runner.close();entered=threading.Event();finish=threading.Event();calls=[]
@@ -247,7 +184,7 @@ class EstopTests(unittest.TestCase):
             def cleanup(self,*args):return {'completion_verified':True,'cleanup_verified':True}
         target=Target('ollama','ollama',('gpu1',),'http://127.0.0.1:1',models=('fixture',))
         self.runner=Runner(self.a,{'ollama':target},{'ollama':Backend()},workers=2,poll_interval=.005)
-        self.addCleanup(self.runner.close);self.addCleanup(finish.set);self.control=Estop(self.runner,b'fixture-key'*4)
+        self.addCleanup(self.runner.close);self.addCleanup(finish.set);self.control=Estop(self.runner)
         self.runner.submit('old','ollama','generate',{'model':'fixture','prompt':'old'});self.assertTrue(entered.wait(3))
         old=self.runner.future('old');paths=dict(self.a.lock_paths);self.execute()
         self.assertTrue(old.running());self.assertFalse(finish.is_set());self.assertFalse(NativeLock(paths['gpu1'],create=False).acquire(0))

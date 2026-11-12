@@ -46,68 +46,66 @@ class EstopHA(HACoreIntegration):
         def close():lease.close();runner.close();tmp.cleanup()
         return SimpleNamespace(root=root,settings=settings,runner=runner,a=a,lease=lease,store=store,close=close)
 
-    def test_actual_admin_denial_and_lost_ws_response_verify(self):
+    def test_actual_active_admin_and_single_request(self):
         async def qualify():
             import aiohttp
             async with aiohttp.ClientSession() as session:
-                async def connect(token):
-                    ws=await session.ws_connect(self.ha_url+'/api/websocket');await ws.receive_json()
-                    await ws.send_json({'type':'auth','access_token':token});self.assertEqual((await ws.receive_json())['type'],'auth_ok');return ws
-                ws=await connect(self.ha_token);serial=0
-                async def command(action,**fields):
-                    nonlocal serial
-                    serial+=1;await ws.send_json(dict(id=serial,type='aihub_recovery/control',action=action,**fields));return await ws.receive_json(timeout=30)
-                async def raw(kind,**fields):
-                    nonlocal serial
-                    serial+=1;await ws.send_json(dict(id=serial,type=kind,**fields));return await ws.receive_json(timeout=30)
-                created=await raw('config/auth/create',name='Member fixture',group_ids=['system-users']);self.assertTrue(created['success'])
-                uid=created['result']['user']['id'];password=uuid.uuid4().hex
-                linked=await raw('config/auth_provider/homeassistant/create',user_id=uid,username='estop-member',password=password);self.assertTrue(linked['success'])
+                ws=await session.ws_connect(self.ha_url+'/api/websocket');await ws.receive_json()
+                await ws.send_json({'type':'auth','access_token':self.ha_token});self.assertEqual((await ws.receive_json())['type'],'auth_ok')
+                await ws.send_json(dict(id=10,type='config/auth/create',name='Member fixture',group_ids=['system-users']))
+                created=await ws.receive_json();self.assertTrue(created['success']);uid=created['result']['user']['id'];password=uuid.uuid4().hex
+                await ws.send_json(dict(id=11,type='config/auth_provider/homeassistant/create',user_id=uid,username='estop-member',password=password));self.assertTrue((await ws.receive_json())['success'])
                 async with session.post(self.ha_url+'/auth/login_flow',json={'client_id':self.ha_url+'/','handler':['homeassistant',None],'redirect_uri':self.ha_url+'/','type':'authorize'}) as response:flow=await response.json()
                 async with session.post(self.ha_url+'/auth/login_flow/'+flow['flow_id'],json={'client_id':self.ha_url+'/','username':'estop-member','password':password}) as response:flow=await response.json()
                 async with session.post(self.ha_url+'/auth/token',data={'grant_type':'authorization_code','code':flow['result'],'client_id':self.ha_url+'/'}) as response:token=await response.json()
-                member=await connect(token['access_token'])
-                for i,action in enumerate(('estop-check','estop','estop-verify'),1):
-                    fields={'token':'not-valid','confirmed':True} if action=='estop' else {'operation':'0'*32} if action=='estop-verify' else {}
-                    await member.send_json(dict(id=i,type='aihub_recovery/control',action=action,**fields));r=await member.receive_json();self.assertFalse(r['success']);self.assertEqual(r['error']['code'],'unauthorized')
-                await member.close()
-                checked=(await command('estop-check'))['result'];self.assertTrue(checked['eligible'])
-                before=self.e.a.snapshot()['admission_generation']['id']
-                serial+=1;await ws.send_json(dict(id=serial,type='aihub_recovery/control',action='estop',token=checked['token'],confirmed=True));await ws.close()
-                end=asyncio.get_running_loop().time()+10
-                while checked['operation'] not in self.e.a.snapshot()['estop_attempts'] and asyncio.get_running_loop().time()<end:await asyncio.sleep(.02)
-                ws=await connect(self.ha_token);serial=0
-                verified=(await command('estop-verify',operation=checked['operation']))['result']
-                self.assertTrue(verified['verified']);self.assertEqual(verified['revoked_leases'],1)
-                self.assertNotEqual(self.e.a.snapshot()['admission_generation']['id'],before)
-                self.assertEqual(len(self.e.a.snapshot()['estop_attempts']),1)
+                member=await session.ws_connect(self.ha_url+'/api/websocket');await member.receive_json();await member.send_json({'type':'auth','access_token':token['access_token']});await member.receive_json()
+                await member.send_json(dict(id=1,type='aihub_recovery/control',action='estop'))
+                denied=await member.receive_json();self.assertFalse(denied['success']);self.assertEqual(denied['error']['code'],'unauthorized');await member.close()
+                self.assertEqual(self.e.a.snapshot()['admission_generation']['sequence'],0)
+                await ws.send_json(dict(id=20,type='aihub_recovery/control',action='estop'))
+                response=await ws.receive_json(timeout=30);self.assertTrue(response['success'],response)
+                self.assertEqual(response['result']['outcome'],'success');self.assertEqual(response['result']['released_leases'],1)
+                self.assertEqual(self.e.a.snapshot()['owners'],{})
                 self.assertFalse(NativeLock(self.e.lease.locks[0].path,create=False).acquire(0))
+                await ws.send_json(dict(id=21,type='aihub_recovery/control',action='estop',token='obsolete',confirmed=True))
+                denied=await ws.receive_json();self.assertFalse(denied['success'])
+                self.assertEqual(self.e.a.snapshot()['admission_generation']['sequence'],1)
                 await ws.close()
         asyncio.run(qualify())
 
-    def test_actual_browser_confirmation_reload_verify_single_audit(self):
+    def test_actual_browser_one_click_twice_and_unknown_no_retry(self):
         async def qualify():
+            import time
             from playwright.async_api import async_playwright
             async with async_playwright() as playwright:
                 browser=await playwright.chromium.launch(headless=True,args=['--disable-gpu']);context=await browser.new_context();page=await context.new_page();dialogs=[]
-                async def confirm(dialog):
-                    dialogs.append(dialog.message);self.assertIn('GPU0 and GPU1',dialog.message);self.assertIn('fixture-active',dialog.message);self.assertIn('NOT stopped',dialog.message);await dialog.accept()
-                page.on('dialog',confirm);await page.goto(self.ha_url+'/local/recovery-qualification.html');await page.evaluate(MOUNT,{'token':self.ha_token,'lose':True})
-                await page.locator('aihub-recovery-card').locator('[data-action="estop-check"]').click();await page.wait_for_function('card.estop.checked?.eligible === true')
-                await page.locator('aihub-recovery-card').locator('[data-action="estop"]').click();await page.wait_for_function('card.estop.pending && !card.estop.busy')
-                pending=await page.evaluate('structuredClone(card.estop.pending)');self.assertNotIn('token',pending);self.assertEqual(len(dialogs),1)
-                await page.reload();await page.evaluate(MOUNT,{'token':self.ha_token,'lose':False});self.assertEqual(await page.evaluate('card.estop.pending.operation'),pending['operation'])
-                other=await context.new_page();await other.goto(self.ha_url+'/local/recovery-qualification.html');await other.evaluate(MOUNT,{'token':self.ha_token,'lose':False});self.assertTrue(await other.locator('aihub-recovery-card').locator('[data-action="estop"]').is_disabled())
-                await other.evaluate('card.act("estop")');self.assertEqual(await other.evaluate('calls.filter(x=>x.action==="estop").length'),0)
-                await page.locator('aihub-recovery-card').locator('[data-action="estop-verify"]').click();await page.wait_for_function('card.estop.pending === null')
-                self.assertEqual(await page.evaluate('calls.filter(x=>x.action==="estop-verify")[0].operation'),pending['operation'])
-                self.assertEqual(len(self.e.a.snapshot()['estop_attempts']),1);self.assertEqual(self.e.store.job('fixture-active')['state'],'failed')
+                async def unexpected(dialog):dialogs.append(dialog.message);await dialog.dismiss()
+                page.on('dialog',unexpected);await page.goto(self.ha_url+'/local/recovery-qualification.html');await page.evaluate(MOUNT,{'token':self.ha_token,'lose':False})
+                root=page.locator('aihub-recovery-card');self.assertEqual(await root.locator('[data-action="estop-check"]').count(),0);self.assertEqual(await root.locator('[data-action="estop-verify"]').count(),0)
+                times=[];sizes=[]
+                for count in (1,2):
+                    begin=time.perf_counter();await root.locator('[data-action="estop"]').click()
+                    await page.wait_for_function('calls.filter(x=>x.action==="estop").length === '+str(count)+' && card.estop.result?.outcome === "success" && !card.estop.busy')
+                    times.append(time.perf_counter()-begin);sizes.append(self.e.store.path('ownership.json').stat().st_size)
+                self.assertEqual(dialogs,[]);self.assertLessEqual(abs(sizes[1]-sizes[0]),20)
+                self.assertEqual(self.e.a.snapshot()['admission_generation']['sequence'],2)
                 self.assertFalse(NativeLock(self.e.lease.locks[0].path,create=False).acquire(0))
-                report=dict(browser=browser.version,transport='actual HA auth/WS -> Media ASGI -> runner/native',audit_count=1,confirmations=len(dialogs),
-                    physical='not asserted; original native FD still held',tokens_persisted=False,card_sha256=hashlib.sha256((ROOT/'home_assistant/www/aihub-recovery-card.js').read_bytes()).hexdigest())
+                fresh=self.e.a.try_acquire('fresh','fresh',('gpu1',),'ollama');self.assertIsNotNone(fresh);fresh.close()
+                await page.reload();await page.evaluate(MOUNT,{'token':self.ha_token,'lose':True})
+                await root.locator('[data-action="estop"]').click();await page.wait_for_function('card.estop.result?.outcome === "unknown" && !card.estop.busy')
+                seq=self.e.a.snapshot()['admission_generation']['sequence'];self.assertEqual(seq,3)
+                await page.evaluate('card.refresh()');await asyncio.sleep(.2)
+                self.assertEqual(await page.evaluate('card.estop.result.outcome'),'unknown')
+                self.assertEqual(await page.evaluate('calls.filter(x=>x.action==="estop").length'),1)
+                await page.reload();await page.evaluate(MOUNT,{'token':self.ha_token,'lose':False})
+                self.assertEqual(await page.evaluate('calls.filter(x=>x.action==="estop").length'),0)
+                self.assertEqual(self.e.a.snapshot()['admission_generation']['sequence'],seq)
+                report=dict(browser=browser.version,transport='actual HA auth/WS -> Media ASGI -> runner/native',
+                    one_click_seconds=times,authority_sizes=sizes,confirmations=len(dialogs),lost_response='UNKNOWN, no retry',
+                    physical='unverified; original native FD still held',card_sha256=hashlib.sha256((ROOT/'home_assistant/www/aihub-recovery-card.js').read_bytes()).hexdigest())
                 (RESULTS/'estop-browser-result.json').write_text(json.dumps(report,indent=2)+'\n');await context.close();await browser.close()
         asyncio.run(qualify())
 
 if __name__=='__main__':
-    suite=unittest.TestSuite([EstopHA('test_actual_admin_denial_and_lost_ws_response_verify'),EstopHA('test_actual_browser_confirmation_reload_verify_single_audit')])
+    suite=unittest.TestSuite([EstopHA('test_actual_active_admin_and_single_request'),EstopHA('test_actual_browser_one_click_twice_and_unknown_no_retry')])
     sys.exit(not unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful())

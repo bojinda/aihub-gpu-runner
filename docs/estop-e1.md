@@ -34,6 +34,9 @@ written again. Reads overlay their immutable failed/no-replay disposition while
 the original bytes remain available as historical evidence. Runner result/artifact
 APIs cannot publish revoked success. Revoked API status reports logical settlement
 independently of unrelated backend readiness and warns old work may continue.
+Result and artifact validation/data reads share admission.lock, so a read cannot
+combine pre-revocation success with post-revocation data. A read completed before
+the switch remains a historical response; already delivered bytes cannot be recalled.
 
 E-stop takes jobs.lock then admission.lock with one bounded wait. It takes no GPU
 resource flock and makes no GPU, Docker, unload, cleanup, reset or signal call.
@@ -96,3 +99,28 @@ authorization. Preserve backup/history/locks and original ingress states. A sche
 rollback cannot start obsolete code over the active journal or restore old journals.
 Five eligible ordinary production days remain a later acceptance gate; emergency
 use does not erase ordinary cleanup failures from that accounting.
+
+## Reproducing the offline checkpoint
+
+Build the native wheel from the committed runtime source identified in the private
+manifest with `tools/build_components.py --commit COMMIT --out OUTPUT`. Install
+that single wheel into unused dependency-correct Python 3.12/3.13/3.14 test venvs.
+`qualification/run_installed_suite.py` records exact import origins, executions,
+unique methods and initialization errors; set AIHUB_QUALIFICATION_RESULTS to a
+private disposable directory and AIHUB_REQUIRE_INSTALLED_RUNNER=1. The real Linux
+process/flock tests are tests/test_estop.py and test_estop_worker_capacity.py.
+
+Run qualification/estop_ha_workflow.py in the pinned HA Core/browser environment,
+with AIHUB_MEDIA_SOURCE pointing at the companion app and AIHUB_MEDIA_PYTHON at
+its isolated ASGI environment. This exercises actual HA authentication/WebSocket,
+Media TLS proxy, runner and Chromium/IndexedDB. Run existing test_real_integration.py
+and test_media_integration.py with AIHUB_QUALIFY_GENERATIONS=1, pinned CPU ComfyUI
+and unchanged plugin wheel. Telemetry is synthetic; no test authenticates historical
+GPU processes or establishes physical GPU idleness. Existing 450 MiB scenarios
+test historical refusal fixtures, not a change to the accepted 475 MiB policy.
+
+All five `tests/test_*card.mjs` suites run with Node's `--test`. Companion Media
+tests require FastAPI's complete test-client dependencies and MEETING_PIPELINE_SOURCE;
+their host-stage subprocess cases require the current native SDK. Actual Media
+ASGI integration separately preserves its HTTP-only SDK. Initialization failures
+and corrected fixture runs remain in the private packet, separate from final passes.

@@ -32,6 +32,7 @@ class Mutex:
 
 class Store:
     def __init__(self): self.values = {}
+    def authority_mutex(self): return contextlib.nullcontext()  # single-threaded observation fixture
     def job_name(self, name): return 'jobs/' + name + '.json'
     def read(self, name, default=None): return copy.deepcopy(self.values.get(name, default))
     def write(self, name, value): self.values[name] = copy.deepcopy(value)

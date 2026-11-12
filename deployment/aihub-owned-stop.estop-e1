@@ -1,0 +1,10 @@
+#!/usr/bin/python3 -I
+"""Reviewed E1 fixed entrypoint; install only in the coordinated upgrade."""
+import hashlib,sys
+from pathlib import Path
+p=Path('/opt/aihub-recovery/estop-e1-20261111.1/runner.whl')
+if hashlib.sha256(p.read_bytes()).hexdigest()!='57a5a17cf8bebcb10fcfaa08c04fff2caa08a17e6776cd69a9f3c8e8e80f1434':
+    raise SystemExit('reviewed_runner_wheel_changed')
+sys.path.insert(0,str(p))
+from aihub_gpu_runner.owned_stop_helper import main
+main()

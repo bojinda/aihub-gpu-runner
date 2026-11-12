@@ -1,3 +1,5 @@
+> E0 feasibility has been accepted by the operator. Earlier review-open/no-op language below is historical design context; the accepted E1 decision in roadmap.md supersedes it. Full E1 is currently stopped at the legacy authority-write invariant.
+
 # E0 — generation feasibility and proposed transaction, not an enabled E-stop
 
 The operator has approved the semantics: global administrative relinquishment of

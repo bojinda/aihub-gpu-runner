@@ -181,6 +181,7 @@ class NativeLock:
 
 class AtomicStore:
     def __init__(self, root):
+        self._write_context = threading.local()
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         (self.root / "jobs").mkdir(exist_ok=True, mode=0o700)
@@ -191,6 +192,9 @@ class AtomicStore:
             raise ValueError("state_path_escape")
         return result
     def write_bytes(self, name, data):
+        guard = getattr(self._write_context, 'guard', None)
+        if guard:
+            guard()
         destination = self.path(name)
         destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         temporary = destination.with_name("." + destination.name + "." + uuid.uuid4().hex + ".tmp")
@@ -199,7 +203,13 @@ class AtomicStore:
             stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary, destination)
+        try:
+            if guard:
+                guard()
+            os.replace(temporary, destination)
+        finally:
+            if temporary.exists():
+                temporary.unlink()
         if os.name != "nt":
             fd = os.open(destination.parent, os.O_RDONLY | os.O_DIRECTORY)
             try:
@@ -582,6 +592,10 @@ class Runner:
         if not self.service_lock.acquire(0):
             raise Conflict("supervisor_already_running")
         self.closed, self.futures, self.pending = False, {}, {}
+        self._workers = workers
+        self._worker_generation = self._authority_generation()
+        self._pool_tasks = {}
+        self._retired_executors = []
         self.wake = threading.Event()
         self.recovery = recovery
         self.handoffs = None
@@ -643,6 +657,74 @@ class Runner:
                 self.recovery.close()
             self.service_lock.close()
             raise
+    def _authority_generation(self):
+        """Read-only: never acquire admission recursively from a store guard."""
+        state = self.admission.snapshot()
+        generation = state.get('admission_generation')
+        if generation is None:
+            return 'legacy'
+        value = generation.get('id') if isinstance(generation, dict) else None
+        if not isinstance(value, str) or not re.fullmatch('[a-f0-9]{32}', value):
+            raise RecoveryRequired('invalid_admission_generation')
+        return value
+    def _assert_worker_generation(self, generation):
+        if generation != self._worker_generation or generation != self._authority_generation():
+            raise RecoveryRequired('worker_generation_revoked')
+    def _reap_retired_locked(self):
+        # Keep executor/task/future references until its submitted work has exited.
+        self._retired_executors[:] = [g for g in self._retired_executors
+            if any(not f.done() for f in g['tasks'])]
+        self._pool_tasks = {f: binding for f, binding in self._pool_tasks.items() if not f.done()}
+    def _rotate_worker_capacity_locked(self, generation):
+        """Caller holds jobs.lock, after a DURABLE authority switch. No I/O effect.
+
+        Return the retired group for nonblocking shutdown OUTSIDE journal locks:
+        Future.cancel callbacks must not run under jobs/admission mutexes.
+        This method does not implement or authorize E-stop or revoke any lease.
+        """
+        if self.closed:
+            raise Conflict('supervisor_closing')
+        if generation != self._authority_generation():
+            raise RecoveryRequired('worker_generation_not_committed')
+        if generation == self._worker_generation:
+            return None
+        replacement = concurrent.futures.ThreadPoolExecutor(max_workers=self._workers,
+            thread_name_prefix='gpu-runner-'+generation[:8])
+        old = dict(generation=self._worker_generation, pool=self.pool,
+                   tasks=self._pool_tasks, futures=self.futures, pending=self.pending)
+        self.pool, self._pool_tasks = replacement, {}
+        self.futures, self.pending = {}, {}
+        self._worker_generation = generation
+        self._retired_executors.append(old)
+        return old
+    @staticmethod
+    def _retire_executor(group):
+        if group is None:
+            return
+        # Does not interrupt or join a running callable. Queued tasks' callbacks
+        # close only their captured old Lease descriptors; never release owners.
+        group['pool'].shutdown(wait=False, cancel_futures=True)
+        for future in group['futures'].values():
+            if not future.running() and not future.done():
+                future.cancel()
+    def rotate_worker_capacity(self, generation):
+        """CPU capacity handover only; not a public administrative mutation API."""
+        with self.job_mutex.held():
+            group = self._rotate_worker_capacity_locked(generation)
+        self._retire_executor(group)
+        self.wake.set()
+        return group is not None
+    @staticmethod
+    def _queued_task_done(task, lease, future):
+        if task.cancelled():
+            lease.close()
+            future.cancel()
+    def _submit_owned_locked(self, job_id, lease, future):
+        generation = self._worker_generation
+        task = self.pool.submit(self._run_owned, job_id, lease, future, generation)
+        self._pool_tasks[task] = (lease, future)
+        task.add_done_callback(lambda value: self._queued_task_done(value, lease, future))
+        return task
     def _update(self, job_id, **fields):
         with self.job_mutex.held():
             job = self.store.job(job_id)
@@ -704,8 +786,10 @@ class Runner:
             job.update(state="cancelled", error_code="cancelled_before_submission", updated_at=timestamp())
             self.store.put_job(job)
             return True
-    def _finish_pending(self, job_id, state=None, error_code=None):
+    def _finish_pending(self, job_id, state=None, error_code=None, *, generation=None):
         with self.job_mutex.held():
+            if generation is not None and generation != self._worker_generation:
+                return
             job = self.store.job(job_id)
             if state and job["state"] == "waiting":
                 job.update(state=state, error_code=error_code, updated_at=timestamp())
@@ -721,65 +805,91 @@ class Runner:
                 self.wake.clear()
                 continue
             with self.job_mutex.held():
+                self._reap_retired_locked()
                 pending = tuple(self.pending.items())
+                generation = self._worker_generation
             for job_id, deadline in pending:
                 try:
                     job = self.status(job_id)
                     if job["state"] == "cancelled":
-                        self._finish_pending(job_id)
+                        self._finish_pending(job_id, generation=generation)
                         continue
                     if self.closed:
-                        self._finish_pending(job_id, "cancelled", "supervisor_closing")
+                        self._finish_pending(job_id, "cancelled", "supervisor_closing", generation=generation)
                         continue
                     if time.monotonic() >= deadline:
-                        self._finish_pending(job_id, "failed", "resource_acquisition_timeout")
+                        self._finish_pending(job_id, "failed", "resource_acquisition_timeout", generation=generation)
                         continue
                     target = self.targets[job["target"]]
-                    lease = self.admission.try_acquire(job_id, job["request_hash"],
-                                                       target.resources, target.name, deadline=deadline)
-                    if lease is None:
-                        continue
                     with self.job_mutex.held():
+                        if generation != self._worker_generation:
+                            continue
+                        lease = self.admission.try_acquire(job_id, job["request_hash"],
+                                                           target.resources, target.name, deadline=deadline)
+                        if lease is None:
+                            continue
                         self.pending.pop(job_id, None)
-                    if time.monotonic() >= deadline:
-                        lease.release({'completion_verified': True, 'cleanup_verified': True,
-                                       'policy': 'never_submitted'})
-                        lease.close()
-                        self._finish_pending(job_id, 'failed', 'resource_acquisition_timeout')
-                        continue
-                    self.pool.submit(self._run_owned, job_id, lease, self.futures[job_id])
+                        if time.monotonic() >= deadline:
+                            lease.release({'completion_verified': True, 'cleanup_verified': True,
+                                           'policy': 'never_submitted'})
+                            lease.close()
+                            # Finish outside the non-reentrant jobs mutex.
+                            expired = True
+                        else:
+                            expired = False
+                            self._submit_owned_locked(job_id, lease, self.futures[job_id])
+                    if expired:
+                        self._finish_pending(job_id, 'failed', 'resource_acquisition_timeout', generation=generation)
                 except Exception as exc:
                     try:
-                        self._finish_pending(job_id, "reconciling", "admission_or_storage_failure")
+                        self._finish_pending(job_id, "reconciling", "admission_or_storage_failure", generation=generation)
                     except Exception:
-                        future = self.futures[job_id]
+                        with self.job_mutex.held():
+                            if generation != self._worker_generation:
+                                continue
+                            future = self.futures[job_id]
+                            self.pending.pop(job_id, None)
                         if not future.done():
                             future.set_exception(exc)
-                        self.pending.pop(job_id, None)
             if self.closed:
                 return
             self.wake.wait(self.poll_interval)
             self.wake.clear()
-    def _run_owned(self, job_id, lease, future):
+    def _run_owned(self, job_id, lease, future, generation=None):
+        generation = self._worker_generation if generation is None else generation
+        previous_guard = getattr(self.store._write_context, 'guard', None)
+        self.store._write_context.guard = lambda: self._assert_worker_generation(generation)
         handoff = self.handoffs if lease.owner['target']=='wallpaper' else None
-        if handoff:handoff.enter(job_id,lease)
+        entered = False
         try:
+            self._assert_worker_generation(generation)
+            if handoff:
+                handoff.enter(job_id,lease)
+                entered = True
             if not future.set_running_or_notify_cancel():
                 lease.release({"completion_verified": True, "cleanup_verified": True,
                                "policy": "never_submitted"})
                 return
             self._work(job_id, lease)
-            if self.recovery:
+            self._assert_worker_generation(generation)
+            if self.recovery and generation == self._worker_generation:
+                self._assert_worker_generation(generation)
                 self.recovery.notify()
         except BaseException as exc:
             from .worker_handoff import WorkerHandoff
-            if isinstance(exc,WorkerHandoff):future.set_result(None)
-            else:future.set_exception(exc)
+            if not future.done():
+                if isinstance(exc,WorkerHandoff):future.set_result(None)
+                else:future.set_exception(exc)
         else:
-            future.set_result(None)
+            if not future.done():future.set_result(None)
         finally:
             lease.close()
-            if handoff:handoff.exit(job_id,lease)
+            try:
+                if entered and generation == self._worker_generation:
+                    self._assert_worker_generation(generation)
+                    handoff.exit(job_id,lease)
+            finally:
+                self.store._write_context.guard = previous_guard
     def _work(self, job_id, lease):
         from .backends import CleanupPending, Uncertain
         guard, cleanup_stage, music = None, None, None
@@ -956,6 +1066,9 @@ class Runner:
         self.wake.set()
         self.scheduler.join()
         self.pool.shutdown(wait=True, cancel_futures=False)
+        for group in self._retired_executors:
+            group['pool'].shutdown(wait=True, cancel_futures=False)
+        self._retired_executors.clear()
         if self.recovery:
             self.recovery.close()
         self.service_lock.close()

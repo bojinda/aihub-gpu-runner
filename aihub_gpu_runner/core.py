@@ -1172,6 +1172,11 @@ class Runner:
             if lease:
                 lease.close()
     def result(self, job_id):
+        # One current-authority read, including validation and publication data.
+        # Never combine a pre-revocation success with a post-revocation result.
+        with self.store.authority_mutex():
+            return self._result_locked(job_id)
+    def _result_locked(self, job_id):
         job = self.status(job_id)
         if job.get('authority_revoked'):
             return dict(value=None, state='failed', error_code=job['error_code'],
@@ -1203,10 +1208,11 @@ class Runner:
         return dict(value, state=job["state"], error_code=job["error_code"],
                     publication_warning=job.get("publication_warning"))
     def artifact(self, job_id):
-        result = self.result(job_id)
-        if not result.get("artifact_available"):
-            raise KeyError("no_artifact")
-        return self.store.path("results/" + check_id(job_id) + ".bin").read_bytes(), result["media_type"]
+        with self.store.authority_mutex():
+            result = self._result_locked(job_id)
+            if not result.get("artifact_available"):
+                raise KeyError("no_artifact")
+            return self.store.path("results/" + check_id(job_id) + ".bin").read_bytes(), result["media_type"]
     def close(self):
         if self.closed:
             return

@@ -21,7 +21,7 @@ MOUNT=r'''async ({token,lose})=>{
    else if(v.type==='auth_ok'){calls.push(message);socket.send(JSON.stringify({id:1,...message}));}
    else if(v.id===1){socket.close();if(!v.success)reject(Error(v.error?.message));
     else if(message.action==='estop' && lose)reject(Error('fixture lost POST response'));
-    else resolve(v.result);}
+    else {if(message.action==='status')v.result.attempt={id:'historical-recovery',status:'succeeded'};resolve(v.result);}}
   };
  });
  document.body.replaceChildren();window.card=document.createElement('aihub-recovery-card');

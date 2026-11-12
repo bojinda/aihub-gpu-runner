@@ -234,8 +234,15 @@ class RealIntegration(unittest.TestCase):
         spec=importlib.util.spec_from_file_location('aihub_gpu_runner.legacy_qualification_core',
             ROOT/'components/client-sdk/aihub_gpu_runner/core.py')
         legacy=importlib.util.module_from_spec(spec);spec.loader.exec_module(legacy)
-        old=legacy.Admission(legacy.AtomicStore(e.store.root),e.a.lock_paths,e.a.scope,require_existing_locks=True)
-        self.assertIsNone(old.try_acquire('unrelated','d'*64,('gpu0','gpu1'),'wallpaper'))
+        if os.environ.get('AIHUB_QUALIFY_GENERATIONS')=='1':
+            # Coordinated upgrade excludes obsolete native writers. An old SDK
+            # cannot consume schema2; it is not a supported mixed-version mode.
+            with self.assertRaises(legacy.RecoveryRequired):
+                old=legacy.Admission(legacy.AtomicStore(e.store.root),e.a.lock_paths,e.a.scope,require_existing_locks=True)
+                old.try_acquire('unrelated','d'*64,('gpu0','gpu1'),'wallpaper')
+        else:
+            old=legacy.Admission(legacy.AtomicStore(e.store.root),e.a.lock_paths,e.a.scope,require_existing_locks=True)
+            self.assertIsNone(old.try_acquire('unrelated','d'*64,('gpu0','gpu1'),'wallpaper'))
         signals=copy.deepcopy(e.comfy.barrier.read()['signals'])
         e.reopen()
         self.assertEqual(e.store.job('owned')['state'],'success')

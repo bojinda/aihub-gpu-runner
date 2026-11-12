@@ -107,6 +107,28 @@ class EstopTests(unittest.TestCase):
         self.runner.futures['job']=concurrent.futures.Future()
         status=Application(self.runner,'fixture-token-disposable-long-0123456789')._status(self.runner.status('job'))
         self.assertTrue(status['resources_released']);self.assertFalse(status['supervision_active']);self.assertTrue(status['old_work_may_continue'])
+        stale=Application(self.runner,'fixture-token-disposable-long-0123456789')._status(job)
+        self.assertEqual(stale['state'],'failed');self.assertTrue(stale['authority_revoked'])
+    def test_result_and_artifact_reads_serialize_with_revocation(self):
+        for edge in ('result','artifact'):
+            name='read-'+edge;self.owned(name=name,phase='success')
+            job=self.store.job(name);job['error_code']=None;self.store.put_job(job)
+            self.store.write('results/'+name+'.json',dict(value='before',artifact_available=True,media_type='application/octet-stream'))
+            self.store.write_bytes('results/'+name+'.bin',b'before')
+            entered=threading.Event();finish=threading.Event();attempt=threading.Event()
+            checked=self.control.check('admin');original=self.runner._result_locked
+            def paused(job_id):
+                entered.set();self.assertTrue(finish.wait(3));return original(job_id)
+            def stop():
+                attempt.set();return self.control.execute(checked['token'],'admin',True)
+            with concurrent.futures.ThreadPoolExecutor(2) as pool,patch.object(self.runner,'_result_locked',paused):
+                reading=pool.submit(getattr(self.runner,edge),name);self.assertTrue(entered.wait(2))
+                stopping=pool.submit(stop);self.assertTrue(attempt.wait(2));time.sleep(.05)
+                self.assertFalse(stopping.done());finish.set();value=reading.result(2)
+                self.assertTrue(stopping.result(3)['verified'])
+            self.assertEqual(value['state'] if edge=='result' else value[0],'success' if edge=='result' else b'before')
+            self.assertEqual(self.runner.result(name)['state'],'failed')
+            with self.assertRaises(KeyError):self.runner.artifact(name)
     def test_waiting_and_retained_terminal_owners_are_abandoned_without_replay(self):
         self.owned(phase='success')
         self.store.put_job(dict(request_id='waiting',request_hash='w',state='waiting',resources=['gpu0'],target='fixture'))

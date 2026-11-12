@@ -26,7 +26,7 @@ class Clock:
 
 
 class Fixture:
-    def __init__(self, test):
+    def __init__(self, test, *, generations=False):
         self.test = test
         temp = tempfile.TemporaryDirectory(prefix='music-release-offline-')
         test.addCleanup(temp.cleanup)
@@ -88,6 +88,9 @@ class Fixture:
         self.runner.admission=self.a;self.runner.store=self.store;self.runner.targets=self.targets
         self.runner.backends=self.backends;self.runner.recovery=self.manager;self.runner.futures={}
         self.runner.job_mutex=NativeLock(self.store.path('jobs.lock'))
+        if generations:
+            from aihub_gpu_runner.estop import activate_generations
+            activate_generations(self.a,confirmed_coordinated_shutdown=True)
         self.lease=self.a.try_acquire('music-job','hash',('gpu0',),'music');test.addCleanup(self.lease.close)
         self.store.put_job(dict(request_id='music-job',request_hash='hash',target='music',resources=['gpu0'],
             operation='workflow',payload={},state='waiting',error_code=None,boot_id=BOOT1))
@@ -136,6 +139,10 @@ class Fixture:
 
 
 class MusicReleaseTests(unittest.TestCase):
+    def test_normal_release_and_result_receipt_under_generation_protocol(self):
+        f=Fixture(self,generations=True);f.run();f.success()
+        self.assertEqual(f.a.snapshot()['schema'],2)
+
     def test_settles_after_existing_free(self):
         f=Fixture(self);f.run();j=f.success()
         self.assertEqual(j['cleanup_proof']['memory_mb'],466)

@@ -70,6 +70,8 @@ class Application:
         future = self.runner.futures.get(job["request_id"])
         active = future is not None and not future.done()
         state = self.runner.admission.snapshot()
+        if job['request_id'] in state.get('estop_revocations', {}):
+            job = self.runner.store.job(job['request_id'])
         released = state["ready"] and not active and not any(
             owner["job_id"] == job["request_id"] for owner in state["owners"].values())
         if job.get('authority_revoked'):

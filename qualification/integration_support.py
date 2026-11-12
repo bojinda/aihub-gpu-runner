@@ -133,6 +133,9 @@ class Environment:
         if hasattr(self.comfy,'configure'):
             self.comfy.configure(self,p)
         authorize_policy(self.a,{'wallpaper':self.target},{'wallpaper':self.backend},p,'DISPOSABLE ONLY',self.observer)
+        if os.environ.get('AIHUB_QUALIFY_GENERATIONS')=='1':
+            from aihub_gpu_runner.estop import activate_generations
+            activate_generations(self.a,confirmed_coordinated_shutdown=True)
         self.manager=RecoveryManager(self.a,{'wallpaper':self.target},{'wallpaper':self.backend},self.observer)
         self.runner=Runner(self.a,{'wallpaper':self.target},{'wallpaper':self.backend},recovery=self.manager,poll_interval=.02)
         self.app=IntegratedApplication(self.runner,self.settings,'job-only-token-0123456789')

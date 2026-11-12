@@ -9,7 +9,7 @@ from .core import strict_json, timestamp
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True)
-    parser.add_argument("action", choices=("inspect", "bootstrap", "recover", "serve",
+    parser.add_argument("action", choices=("inspect", "bootstrap", "recover", "serve", "activate-generations",
                         "transition-scope", "transition-recovery-gate", "dual-restore", "migrate-physical-locks",
                         "transition-wallpaper-workflow", "transition-wallpaper-conditioning",
                         "transition-wallpaper-on-demand",
@@ -58,6 +58,13 @@ def main():
             runner.close()
         return
     _, targets, admission = admission_from_config(args.config)
+    if args.action == 'activate-generations':
+        if not args.approval_ref or args.rollback or args.new_config:
+            parser.error('coordinated shutdown approval reference required; no automatic rollback')
+        from .estop import activate_generations
+        g=activate_generations(admission,confirmed_coordinated_shutdown=True)
+        print(json.dumps({'generation':g,'approval_ref':args.approval_ref,'owners_preserved':True,'backend_operations':0}))
+        return
     if args.action == 'recover-reboot-contract':
         if (not args.evidence_file or not args.container_review_file or not args.job_id or
                 args.new_config or args.rollback or args.policy_file or args.approval_ref):

@@ -12,6 +12,8 @@ import time
 from .backends import Execution, HTTPTransport, NvidiaMemoryProbe, OllamaBackend, CleanupPending
 from .config import admission_from_config
 from .core import Conflict, FINAL, NativeLock, RecoveryRequired, check_id, encode, timestamp, strict_json
+
+PROTOCOL_VERSION = 2
 from .dual_gpu import ComposeOllamaSwitch, switch_binding
 
 
@@ -296,6 +298,7 @@ class HostStage:
                 environment = dict(environment, AIHUB_GPU_STAGE_INPUT_SNAPSHOTS=encode(snapshots).decode())
             environment = dict(environment, AIHUB_GPU_HOST_JOB_ID=self.job_id,
                                AIHUB_GPU_HOST_LEASE_ID=self.lease.owner['lease_id'],
+                               AIHUB_GPU_HOST_GENERATION=self.lease.owner.get('admission_generation','legacy'),
                                AIHUB_GPU_LOCK_HELD_FILE=str(self.admission.lock_paths['gpu1' if self.is_ollama else 'gpu0']),
                                AIHUB_GPU_OLLAMA_TARGET=self.target_name if self.is_ollama else environment.get('AIHUB_GPU_OLLAMA_TARGET', 'ollama'))
             print('[gpu-lock] Acquired shared stage: ' + self.job_id, file=sys.stderr)
@@ -449,12 +452,12 @@ def main():
         value, targets, admission = admission_from_config(os.environ['AIHUB_GPU_RUNNER_CONFIG'])
         resource = args.resource
         if resource not in ('gpu0', 'gpu1', 'gpu0+gpu1'):
-            matches = [name for name, path in admission.lock_paths.items()
+            matches = [name for name, path in admission.original_lock_paths.items()
                        if path == Path(resource).resolve()]
             if len(matches) != 1:
                 raise ValueError('unconfigured_physical_lock')
             resource = matches[0]
-        for name, path in admission.lock_paths.items():
+        for name, path in admission.original_lock_paths.items():
             override = os.environ.get('AIHUB_' + name.upper() + '_LOCK_FILE')
             if override and Path(override).resolve() != path:
                 raise ValueError('physical_lock_override_mismatch')

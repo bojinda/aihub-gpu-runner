@@ -10,7 +10,7 @@ import re
 import sys
 import time
 
-from .core import RecoveryRequired, guest_boot_id, lock_identity, strict_json
+from .core import RecoveryRequired, guest_boot_id, lock_identity, strict_json, generation_paths
 from .native_settlement import sha, completed_output_known
 from .owned_execution import AnchoredTarget, PidfdActuator, kernel_anchor
 from .target_barrier import TargetBarrier
@@ -35,7 +35,8 @@ def compatibility(config):
         raise RecoveryRequired('helper_scope_incompatible_before_start')
     if state.get('verified_boot')!=guest_boot_id():raise RecoveryRequired('helper_boot_incompatible_before_start')
     if set(config['lock_paths'])!={'gpu0','gpu1'}:raise RecoveryRequired('helper_lock_configuration_changed')
-    for r,p in config['lock_paths'].items():
+    paths=generation_paths(state,root,config['lock_paths']) if state.get('schema')==2 else config['lock_paths']
+    for r,p in paths.items():
         if lock_identity(Path(p).stat())!=state['lock_identity'][r]:
             raise RecoveryRequired('helper_physical_lock_identity_changed')
     if config['container_id']!=state['recovery_policy']['policy']['wallpaper']:
@@ -108,7 +109,8 @@ def perform(config,operation):
     state=strict_json((root/'ownership.json').read_bytes())
     if state['scope']!=config['scope'] or state.get('verified_boot')!=guest_boot_id():
         raise RecoveryRequired('helper_scope_or_boot_changed')
-    for resource,path in config['lock_paths'].items():
+    paths=generation_paths(state,root,config['lock_paths']) if state.get('schema')==2 else config['lock_paths']
+    for resource,path in paths.items():
         if lock_identity(Path(path).stat())!=state['lock_identity'][resource]:
             raise RecoveryRequired('helper_physical_lock_identity_changed')
     if set(state['owners'])!={'gpu0','gpu1'} or state['owners']['gpu0']!=state['owners']['gpu1']:

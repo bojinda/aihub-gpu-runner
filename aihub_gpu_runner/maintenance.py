@@ -23,6 +23,15 @@ def read_gate(store, required=False):
             (value['mode'] == 'closed' and value.get('active') not in value['attempts']) or
             (value['mode'] == 'open' and value.get('active') is not None)):
         raise RecoveryRequired('maintenance_journal_unavailable')
+    state = store.read('ownership.json', {})
+    if state.get('schema') == 2:
+        g = state['admission_generation']['id']
+        if value.get('admission_generation') != g and state['admission_generation']['sequence']>0:
+            # The original gate remains historical; E-stop's atomic journal audit
+            # preserved its full bytes. Old permits have no current authority.
+            value = dict(value, mode='open', active=None, permits={}, admission_generation=g)
+        else:
+            value = dict(value, admission_generation=g)
     return value
 
 
@@ -50,8 +59,10 @@ def initialize(admission):
         for name in ('recovery-control.lock', 'maintenance.lock', 'recovery.lock'):
             with NativeLock(admission.store.path(name)).held():
                 pass
-        admission.store.write(FILE, dict(schema=1, mode='open', active=None,
-                                        epoch=0, attempts={}, permits={}))
+        value=dict(schema=1, mode='open', active=None, epoch=0, attempts={}, permits={})
+        state=admission.snapshot()
+        if state.get('schema')==2:value['admission_generation']=state['admission_generation']['id']
+        admission.store.write(FILE,value)
 
 
 class IngressGate:

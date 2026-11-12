@@ -7,7 +7,7 @@ import argparse,base64,csv,hashlib,io,json,subprocess,zipfile
 from pathlib import Path
 
 COMPONENTS={
- 'runner':('aihub_gpu_runner','aihub-gpu-runner','0.2.0+reliability.candidate.20261111.1'),
+ 'runner':('aihub_gpu_runner','aihub-gpu-runner','0.2.0+estop.e1.20261111.1'),
  'host-sdk':('components/host-sdk/aihub_gpu_runner','aihub-gpu-runner','0.1.0+ha.recovery.completion.20261110.1'),
  'privileged-helper':('components/privileged-helper/aihub_gpu_runner','aihub-gpu-runner','0.1.0+helper.binding.correction.20261110.1'),
  'comfy-plugin':('components/comfy-plugin/_aihub_recovery_comfy','aihub-recovery-comfy','0.1.0+reconstructed.20261111'),
@@ -40,5 +40,7 @@ if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('--commit',required=True);p.add_argument('--out',type=Path,required=True)
  p.add_argument('--component',choices=COMPONENTS,action='append');a=p.parse_args()
  repo=Path(__file__).resolve().parents[1]
- result=[build(repo,a.commit,c,a.out) for c in a.component or COMPONENTS]
+ # E1 reuses the canonical runner wheel in the CPU, native-host and fixed-helper
+ # environments. Other choices reproduce preserved baseline artifacts only.
+ result=[build(repo,a.commit,c,a.out) for c in a.component or ('runner',)]
  print(json.dumps(result,indent=2))

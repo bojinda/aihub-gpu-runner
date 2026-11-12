@@ -3,8 +3,8 @@
 // IndexedDB transactions serialize tabs even on a private HTTP HA origin.
 // These records carry no credential, ticket or server-side authority.
 export class BrowserPendingStore {
-  constructor(indexedDB = globalThis.indexedDB, now = () => Date.now()) {
-    this.indexedDB = indexedDB; this.now = now; this.reservation = null;
+  constructor(indexedDB = globalThis.indexedDB, now = () => Date.now(), key = "state") {
+    this.indexedDB = indexedDB; this.now = now; this.reservation = null; this.key = key;
   }
   async update(change, writable = true) {
     if (!this.indexedDB) throw new Error("Recovery persistence unavailable; mutation disabled.");
@@ -20,12 +20,12 @@ export class BrowserPendingStore {
       return await new Promise((resolve, reject) => {
         const transaction = database.transaction("control", writable ? "readwrite" : "readonly");
         const store = transaction.objectStore("control"); let result, failure;
-        const request = store.get("state");
+        const request = store.get(this.key);
         request.onsuccess = () => {
           try {
             const state = request.result || {pending: null, reservation: null};
             result = change(state);
-            if (writable) store.put(state, "state");
+            if (writable) store.put(state, this.key);
           } catch (error) {failure = error; transaction.abort();}
         };
         transaction.oncomplete = () => resolve(result);
@@ -37,6 +37,11 @@ export class BrowserPendingStore {
     return this.update(state => {
       const value = state.pending;
       if (value === null) return null;
+      if (this.key === "estop") {
+        if (value?.schema !== 1 || value.action !== "estop" || !/^[a-f0-9]{32}$/.test(value.operation || "") || !/^[a-f0-9]{32}$/.test(value.generation || ""))
+          throw new Error("Invalid pending E-stop; review required.");
+        return value;
+      }
       if (value?.schema !== 1 || typeof value.operation !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(value.operation)
           || typeof value.job_id !== "string" || !value.identity || typeof value.identity.lease_id !== "string"
           || !["recover", "emergency", "abort"].includes(value.action))
@@ -188,6 +193,47 @@ export class RecoveryFlow {
   }
 }
 
+export class EstopFlow {
+  constructor(send, confirm, store = new BrowserPendingStore(globalThis.indexedDB, () => Date.now(), "estop")) {
+    this.send=send;this.confirm=confirm;this.store=store;this.pending=null;this.checked=null;this.busy=false;
+  }
+  async sync() { this.pending=await this.store.load();return this.pending; }
+  async check() {
+    if (await this.sync()) throw new Error("E-stop outcome pending; use E-stop Verify.");
+    const value=await this.send({action:"estop-check"});
+    if (await this.sync()) throw new Error("E-stop outcome pending; use E-stop Verify.");
+    this.checked=value.eligible===true?structuredClone(value):null;return value;
+  }
+  async accept(value) {
+    await this.sync();
+    if (!this.pending || value?.operation!==this.pending.operation || value.verified!==true) return;
+    if (value.result==="ownership_relinquished" && value.old_generation?.id===this.pending.generation && value.replayed===false && value.physical_gpu_state==="NOT_ASSERTED" ||
+        value.result==="not_committed" && value.verified_no_effect===true) {
+      await this.store.clear(this.pending.operation);await this.sync();
+    }
+  }
+  async execute() {
+    if(this.busy) throw new Error("E-stop request active; use Verify.");
+    const chosen=structuredClone(this.checked);
+    if(!chosen?.eligible || Date.now()/1000>=chosen.expires) throw new Error("Run E-stop Check again.");
+    this.busy=true;
+    try {return await this.store.exclusive(async()=>{
+      if(await this.sync()) throw new Error("E-stop outcome pending; use Verify.");
+      if(!await this.confirm(`${chosen.effect}\n\nCurrent generation: ${chosen.generation}\nOwners: ${JSON.stringify(chosen.owners)}\nAffected requests: ${JSON.stringify(chosen.jobs)}\nGPU processes are NOT stopped. Concurrent GPU work is accepted.`)) return {result:"cancelled"};
+      if(Date.now()/1000>=chosen.expires) throw new Error("E-stop confirmation expired.");
+      const value={schema:1,action:"estop",operation:chosen.operation,generation:chosen.generation};
+      await this.store.save(value);this.pending=value;this.checked=null;
+      const result=await this.send({action:"estop",token:chosen.token,confirmed:true});
+      await this.accept(result);return result;
+    });} finally {this.busy=false;}
+  }
+  async verify() {
+    await this.sync();if(!this.pending) throw new Error("No pending E-stop operation.");
+    const result=await this.send({action:"estop-verify",operation:this.pending.operation});
+    await this.accept(result);return result;
+  }
+}
+
 const ElementBase = globalThis.HTMLElement || class {};
 export class AIHubRecoveryCard extends ElementBase {
   setConfig(config) { this.config = config; }
@@ -196,6 +242,8 @@ export class AIHubRecoveryCard extends ElementBase {
     if (!this.flow) {
       this.flow = new RecoveryFlow(message => this._hass.callWS({type: "aihub_recovery/control", ...message}),
         text => Promise.resolve(window.confirm(text)));
+      this.estop = new EstopFlow(message => this._hass.callWS({type:"aihub_recovery/control",...message}),
+        text=>Promise.resolve(window.confirm(text)));
       this.attachShadow({mode: "open"});
       this.shadowRoot.innerHTML = `<style>
         ha-card{display:block;padding:20px}h2{font-size:20px;margin:0 0 14px}
@@ -207,6 +255,9 @@ export class AIHubRecoveryCard extends ElementBase {
       <button data-action="emergency" hidden>Emergency Release…</button>
       <button data-action="verify">Verify interrupted operation</button>
       <button data-action="check-abort">Check Abort</button>
+      <hr><p>Global E-stop relinquishes runner ownership. GPU work may continue and overlap.</p>
+      <button data-action="estop-check">E-stop Check</button><button data-action="estop" disabled>Confirm global E-stop…</button>
+      <button data-action="estop-verify">E-stop Verify</button><div class="estop-state" role="status"></div>
       <p>The existing acknowledgment button only clears the display count.</p></ha-card>`;
       this.shadowRoot.querySelectorAll("button").forEach(button => button.onclick = () => this.act(button.dataset.action));
       this.initialRefresh = this.refresh();
@@ -224,6 +275,10 @@ export class AIHubRecoveryCard extends ElementBase {
       if (value.available !== true) throw new Error("Unavailable");
       this.status = value;
       await this.flow.syncPending();
+      try {
+        const s=await this.estop.send({action:"estop-status"});await this.estop.sync();
+        this.shadowRoot.querySelector(".estop-state").textContent=`Runner ownership: ${s.runner_ownership || "unavailable"}; generation: ${s.current_generation || "unavailable"}; revoked leases: ${s.revoked_leases ?? "unknown"}; GPU physical activity: NOT ASSERTED${this.estop.pending ? "; pending Verify: "+this.estop.pending.operation : ""}`;
+      } catch {this.shadowRoot.querySelector(".estop-state").textContent="E-stop status unavailable; pending operations remain Verify-only.";}
       if (value.configuration_errors?.length) this.flow.checked = null;
       const fields = {...(value.configuration_errors?.length ? {"Recovery configuration error": value.configuration_errors.join(", ")} : {}),
         ...(this.flow.persistenceError ? {"Recovery browser configuration error": this.flow.persistenceError} : {}),
@@ -265,12 +320,19 @@ export class AIHubRecoveryCard extends ElementBase {
     emergency.hidden = !practical;
     emergency.disabled = pending || this.flow.busy || !this.status || !!this.status.configuration_errors?.length;
     this.shadowRoot.querySelector('[data-action="check-abort"]').hidden = this.status?.integrated === true;
+    try {
+      await this.estop.sync();
+      this.shadowRoot.querySelector('[data-action="estop"]').disabled=!!this.estop.pending || this.estop.busy || !this.estop.checked;
+    } catch {this.shadowRoot.querySelector('[data-action="estop"]').disabled=true;}
   }
   async act(action) {
     const display = this.shadowRoot.querySelector(".message");
     try {
       let result;
-      if (action === "recover") result = (this.status?.capabilities?.includes("practical_recovery_v1") || this.status?.capabilities?.includes("manual_idle_recovery_v1")) && this.flow.checked?.action !== "abort"
+      if(action==="estop-check") result=await this.estop.check();
+      else if(action==="estop") result=await this.estop.execute();
+      else if(action==="estop-verify") result=await this.estop.verify();
+      else if (action === "recover") result = (this.status?.capabilities?.includes("practical_recovery_v1") || this.status?.capabilities?.includes("manual_idle_recovery_v1")) && this.flow.checked?.action !== "abort"
         ? await this.flow.recoverNow() : await this.flow.recover();
       else if (action === "emergency") result = await this.flow.recoverNow(true);
       else if (action === "verify") {

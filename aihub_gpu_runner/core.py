@@ -18,6 +18,7 @@ FINAL = {"success", "failed", "cancelled"}
 QUIESCENT = FINAL | {"reconciling", "cleanup_pending"}
 _THREAD_LOCKS = {}
 _THREAD_GUARD = threading.Lock()
+_HELD_NATIVE = {}
 
 
 class Conflict(Exception):
@@ -104,6 +105,8 @@ class NativeLock:
                         import fcntl
                         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     self.fd = fd
+                    with _THREAD_GUARD:
+                        _HELD_NATIVE[id(self)] = (os.getpid(), threading.get_ident(), str(self.path.resolve()))
                     return True
                 except OSError as exc:
                     if exc.errno not in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
@@ -156,6 +159,8 @@ class NativeLock:
         if self.fd is None:
             return
         fd, self.fd = self.fd, None
+        with _THREAD_GUARD:
+            _HELD_NATIVE.pop(id(self), None)
         try:
             if os.name == "nt":
                 import msvcrt
@@ -167,6 +172,11 @@ class NativeLock:
         finally:
             os.close(fd)
             self.local.release()
+    @staticmethod
+    def held_by_current_thread(path):
+        key = (os.getpid(), threading.get_ident(), str(Path(path).resolve()))
+        with _THREAD_GUARD:
+            return key in _HELD_NATIVE.values()
     @contextlib.contextmanager
     def held(self, timeout=5):
         # A context object is shared by worker threads; descriptors are not.
@@ -191,7 +201,79 @@ class AtomicStore:
         if not result.is_relative_to(self.root):
             raise ValueError("state_path_escape")
         return result
+    def _read_raw(self, name, default=None):
+        try:
+            return strict_json(self.path(name).read_bytes())
+        except FileNotFoundError:
+            return default
+        except (ValueError, UnicodeError):
+            raise RecoveryRequired('stored_record_invalid') from None
+    @contextlib.contextmanager
+    def authority_mutex(self):
+        path = self.path('admission.lock')
+        if NativeLock.held_by_current_thread(path):
+            yield
+        else:
+            with NativeLock(path).held():
+                yield
+    def _revocation(self, name):
+        parts = Path(name).parts
+        if len(parts) != 2 or parts[0] not in ('jobs', 'results'):
+            return None
+        job_id = Path(parts[1]).stem
+        state = self._read_raw('ownership.json', {})
+        return state.get('estop_revocations', {}).get(job_id)
     def write_bytes(self, name, data):
+        name = self.path(name).relative_to(self.root).as_posix()
+        if name == 'ownership.json':
+            return self._write_authority(strict_json(data))
+        state = self._read_raw('ownership.json', {})
+        if state.get('schema') == 2 and (str(name).startswith(('jobs/', 'results/')) or name == 'recovery-control.json'):
+            with self.authority_mutex():
+                state = self._read_raw('ownership.json')
+                if self._revocation(name):
+                    raise RecoveryRequired('job_authority_revoked')
+                if str(name).startswith('jobs/'):
+                    value = strict_json(data)
+                    g = state['admission_generation']['id']
+                    if value.get('admission_generation', g) != g:
+                        raise RecoveryRequired('stale_job_generation')
+                    existing = self._read_raw(name, {})
+                    if existing.get('admission_generation') and value.get('admission_generation') != g:
+                        raise RecoveryRequired('stale_job_generation')
+                    if not existing:value['admission_generation'] = g
+                    data = encode(value)
+                if name == 'recovery-control.json':
+                    value = strict_json(data)
+                    if value.get('admission_generation') != state['admission_generation']['id']:
+                        raise RecoveryRequired('stale_maintenance_generation')
+                return self._write_bytes(name, data)
+        return self._write_bytes(name, data)
+    def _write_authority(self, value):
+        if not isinstance(value, dict):
+            raise ValueError('ownership_object_required')
+        with self.authority_mutex():
+            current = self._read_raw('ownership.json')
+            if current and current.get('schema') == 2:
+                if value.get('schema') != 2 or value.get('authority_revision') != current['authority_revision']:
+                    raise RecoveryRequired('stale_authority_revision')
+                switching = getattr(self._write_context, 'generation_switch', False)
+                if not switching and value.get('admission_generation') != current['admission_generation']:
+                    raise RecoveryRequired('stale_authority_generation')
+                if switching and (value['admission_generation']['origin'] != current['admission_generation']['origin'] or
+                        value['admission_generation']['sequence'] != current['admission_generation']['sequence']+1):
+                    raise RecoveryRequired('generation_transition_changed')
+                for owner in value.get('owners', {}).values():
+                    if (owner.get('admission_generation') != value['admission_generation']['id'] or
+                            owner.get('job_id') in current.get('estop_revocations', {})):
+                        raise RecoveryRequired('revoked_owner_cannot_be_restored')
+                for name in ('estop_revocations', 'estop_attempts', 'estop_intents'):
+                    if any(value.get(name, {}).get(k) != v for k, v in current.get(name, {}).items()):
+                        raise RecoveryRequired('estop_history_changed')
+                value = dict(value, authority_revision=current['authority_revision'] + 1)
+            self._write_bytes('ownership.json', encode(value))
+            return value
+    def _write_bytes(self, name, data):
         guard = getattr(self._write_context, 'guard', None)
         if guard:
             guard()
@@ -217,14 +299,24 @@ class AtomicStore:
             finally:
                 os.close(fd)
     def write(self, name, value):
+        name = self.path(name).relative_to(self.root).as_posix()
+        if name == 'ownership.json':
+            committed = self._write_authority(value)
+            value.update(committed)
+            return
         self.write_bytes(name, encode(value))
     def read(self, name, default=None):
-        try:
-            return strict_json(self.path(name).read_bytes())
-        except FileNotFoundError:
-            return default
-        except (ValueError, UnicodeError):
-            raise RecoveryRequired("stored_record_invalid") from None
+        name = self.path(name).relative_to(self.root).as_posix()
+        value = self._read_raw(name, default)
+        record = self._revocation(name)
+        if record:
+            if str(name).startswith('jobs/'):
+                return dict(record['job_before'], state='failed', host_exit_code=70,
+                    error_code='administrator_estop_no_replay', authority_revoked=True,
+                    resources_released=True, estop_operation=record['operation'], replayed=False,old_work_may_continue=True)
+            return dict(value=None, artifact_available=False, authority_revoked=True,
+                        error_code='administrator_estop_no_replay')
+        return value
     def job_name(self, job_id):
         return "jobs/" + check_id(job_id) + ".json"
     def job(self, job_id):
@@ -233,9 +325,12 @@ class AtomicStore:
             raise KeyError(job_id)
         return value
     def put_job(self, value):
+        state = self._read_raw('ownership.json', {})
+        if state.get('schema') == 2 and not self.path(self.job_name(value['request_id'])).exists():
+            value.setdefault('admission_generation', state['admission_generation']['id'])
         self.write(self.job_name(value["request_id"]), value)
     def jobs(self):
-        return [strict_json(path.read_bytes()) for path in sorted(self.path("jobs").glob("*.json"))]
+        return [self.job(path.stem) for path in sorted(self.path("jobs").glob("*.json"))]
 
 
 def lock_identity(stat_value):
@@ -243,6 +338,27 @@ def lock_identity(stat_value):
     return {"device": stat_value.st_dev, "inode": stat_value.st_ino,
             "mode": stat.S_IMODE(stat_value.st_mode),
             "uid": stat_value.st_uid, "gid": stat_value.st_gid}
+
+
+def generation_paths(state, root, original_paths=None):
+    """One journal, derived paths, immutable original lock trust; no side registry."""
+    g = state.get('admission_generation')
+    if state.get('schema') != 2 or not isinstance(g, dict) or not re.fullmatch('[a-f0-9]{32}', str(g.get('id', ''))):
+        raise RecoveryRequired('invalid_admission_generation')
+    if type(g.get('sequence')) is not int or g['sequence'] < 0:
+        raise RecoveryRequired('invalid_generation_sequence')
+    origin = g['origin']
+    if original_paths is not None and origin['paths'] != {r:str(Path(p).resolve()) for r,p in original_paths.items()}:
+        raise RecoveryRequired('original_lock_configuration_changed')
+    paths = ({r:Path(p) for r,p in origin['paths'].items()} if g['sequence']==0 else
+             {r:Path(root)/'generations'/g['id']/(r+'.lock') for r in ('gpu0','gpu1')})
+    if (set(paths) != {'gpu0','gpu1'} or g.get('paths') != {r:str(p.resolve()) for r,p in paths.items()}
+            or g.get('lock_identity') != state.get('lock_identity')):
+        raise RecoveryRequired('generation_lock_binding_changed')
+    for r,p in origin['paths'].items():
+        if lock_identity(Path(p).lstat()) != origin['lock_identity'][r]:
+            raise RecoveryRequired('original_physical_lock_changed')
+    return paths
 
 
 class Admission:
@@ -255,6 +371,7 @@ class Admission:
         if not lock_paths or set(lock_paths) - {"gpu0", "gpu1"}:
             raise ValueError("invalid_resources")
         self.lock_paths = {key: Path(value).resolve() for key, value in lock_paths.items()}
+        self.original_lock_paths = dict(self.lock_paths)
         if len(set(self.lock_paths.values())) != len(self.lock_paths):
             raise ValueError("resource_paths_must_be_distinct")
         self.scope = scope
@@ -265,7 +382,7 @@ class Admission:
         with self.mutex.held():
             current = store.read("ownership.json")
             if current is None:
-                if store.jobs():
+                if store.jobs() or (store.root/'generations').exists():
                     raise RecoveryRequired("ownership_missing_with_existing_jobs")
                 store.write("ownership.json", {"schema": 1, "scope": scope, "ready": False,
                     "bootstrap_id": uuid.uuid4().hex, "owners": {}})
@@ -278,7 +395,12 @@ class Admission:
             if (not path.is_file() or lock_identity(path.stat()) != state["lock_identity"][resource]):
                 raise RecoveryRequired("physical_lock_identity_changed")
     def _validate(self, state):
-        if (not isinstance(state, dict) or state.get("schema") != 1 or
+        if isinstance(state, dict) and state.get('schema') == 2:
+            self.lock_paths = generation_paths(state, self.store.root, self.original_lock_paths)
+            if type(state.get('authority_revision')) is not int or state['authority_revision']<0 or any(
+                    not isinstance(state.get(k),dict) for k in ('estop_intents','estop_attempts','estop_revocations')):
+                raise RecoveryRequired('generation_journal_invalid')
+        if (not isinstance(state, dict) or state.get("schema") not in (1, 2) or
                 state.get("scope") != self.scope or type(state.get("ready")) is not bool or
                 not isinstance(state.get("owners"), dict) or
                 set(state["owners"]) - set(self.lock_paths)):
@@ -343,6 +465,14 @@ class Admission:
         locks = []
         with self.mutex.held():
             state = self.snapshot()
+            if self.store._revocation(self.store.job_name(job_id)):
+                raise RecoveryRequired('job_authority_revoked')
+            if state.get('schema') == 2:
+                # Before inference, resolve an earlier rename/directory-flush error.
+                for path in (self.store.path('ownership.json'), self.store.root):
+                    fd = os.open(path, os.O_RDONLY)
+                    try: os.fsync(fd)
+                    finally: os.close(fd)
             if self.maintenance_blocked():
                 return None
             if deadline is not None and time.monotonic() >= deadline:
@@ -370,6 +500,8 @@ class Admission:
                          "lease_id": uuid.uuid4().hex, "target": target, "phase": "claimed",
                          "claimed_at": timestamp()}
                 owner['boot_id'] = self.boot_reader()
+                if state.get('schema') == 2:
+                    owner['admission_generation'] = state['admission_generation']['id']
                 if deadline is not None and time.monotonic() >= deadline:
                     for lock in reversed(locks):
                         lock.close()
@@ -386,6 +518,8 @@ class Admission:
     def _modify(self, owner, resources, phase=None, clear=False, detail=None, before_clear=None, validate_clear=None):
         with self.mutex.held():
             state = self.snapshot()
+            if state.get('schema') == 2 and owner.get('admission_generation') != state['admission_generation']['id']:
+                raise RecoveryRequired('stale_lease_generation')
             if any(state["owners"].get(r, {}).get("lease_id") != owner["lease_id"]
                    for r in resources):
                 raise RecoveryRequired("stale_lease")
@@ -688,6 +822,7 @@ class Runner:
             raise RecoveryRequired('worker_generation_not_committed')
         if generation == self._worker_generation:
             return None
+        self._reap_retired_locked()
         replacement = concurrent.futures.ThreadPoolExecutor(max_workers=self._workers,
             thread_name_prefix='gpu-runner-'+generation[:8])
         old = dict(generation=self._worker_generation, pool=self.pool,
@@ -800,6 +935,16 @@ class Runner:
             future.set_result(None)
     def _schedule(self):
         while True:
+            try:
+                with self.job_mutex.held():
+                    g = self._authority_generation()
+                    group = self._rotate_worker_capacity_locked(g) if g != self._worker_generation else None
+                self._retire_executor(group)
+            except Exception:
+                if self.closed:
+                    return
+                self.wake.wait(self.poll_interval);self.wake.clear()
+                continue
             if self.admission.maintenance_blocked() and not self.closed:
                 self.wake.wait(self.poll_interval)
                 self.wake.clear()
@@ -1028,6 +1173,9 @@ class Runner:
                 lease.close()
     def result(self, job_id):
         job = self.status(job_id)
+        if job.get('authority_revoked'):
+            return dict(value=None, state='failed', error_code=job['error_code'],
+                        artifact_available=False, authority_revoked=True, replayed=False)
         if job.get('ollama_cleanup_context'):
             future = self.futures.get(job_id)
             if ((future is not None and not future.done()) or any(

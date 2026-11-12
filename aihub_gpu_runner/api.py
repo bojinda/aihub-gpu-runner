@@ -72,11 +72,18 @@ class Application:
         state = self.runner.admission.snapshot()
         released = state["ready"] and not active and not any(
             owner["job_id"] == job["request_id"] for owner in state["owners"].values())
+        if job.get('authority_revoked'):
+            # Current authority is settled even if old execution or unrelated
+            # backend readiness remains unresolved. Never claim physical idle.
+            active=False;released=True
         result = {key: job[key] for key in ("request_id", "request_hash", "target", "state",
                 "created_at", "updated_at", "error_code", "phase", "backend_detail",
                 "completion_verified", "cleanup_verified", "publication_warning") if key in job}
         if job.get('wallpaper_lifecycle') and result.get('state') == 'success' and not released:
             result['state'] = 'cleanup_pending'
+        if job.get('authority_revoked'):
+            result.update(authority_revoked=True,old_work_may_continue=True,
+                          estop_operation=job['estop_operation'])
         return dict(result, resources_released=released, supervision_active=active)
 
 def serve(application, host="127.0.0.1", port=8790, *, tls_context=None, started=None):

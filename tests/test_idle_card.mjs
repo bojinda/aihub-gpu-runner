@@ -14,7 +14,7 @@ const initial={available:true,integrated:true,capabilities:['manual_idle_recover
  classification:'manual_idle_check_required',failed_checks:[],error_code:'process_refusal'}]};
 function dom(){
  const nodes=new Map();
- for(const key of ['dl','.message',...['check','recover','emergency','verify','check-abort'].map(x=>`[data-action="${x}"]`)])
+ for(const key of ['dl','.message','.estop-state',...['check','recover','emergency','verify','check-abort','estop-check','estop','estop-verify'].map(x=>`[data-action="${x}"]`)])
   nodes.set(key,{textContent:'',children:[],replaceChildren(){this.children=[]},append(...x){this.children.push(...x)}});
  const shadow={querySelector:k=>nodes.get(k),querySelectorAll:()=>[]};
  globalThis.document={createElement:()=>({textContent:''})};

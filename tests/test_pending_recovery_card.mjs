@@ -15,7 +15,7 @@ const initial = {available: true, integrated: true, capabilities: ['manual_idle_
   attempt: {id: 'older-operation', phase: 'succeeded'}};
 function dom() {
   const nodes = new Map();
-  for (const key of ['dl', '.message', ...['check', 'recover', 'emergency', 'verify', 'check-abort'].map(x => `[data-action="${x}"]`)])
+  for (const key of ['dl', '.message', '.estop-state', ...['check', 'recover', 'emergency', 'verify', 'check-abort','estop-check','estop','estop-verify'].map(x => `[data-action="${x}"]`)])
     nodes.set(key, {textContent: '', children: [], replaceChildren() {this.children = [];}, append(...x) {this.children.push(...x);}});
   globalThis.document = {createElement: () => ({textContent: ''})};
   return {nodes, shadow: {querySelector: key => nodes.get(key), querySelectorAll: () => []}};

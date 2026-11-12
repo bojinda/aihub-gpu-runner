@@ -63,9 +63,10 @@ class WorkerCapacity(unittest.TestCase):
         gate,old,ended=self.old_work()
         queued=QueueOnlyLease();task,visible=self.submit('queued-old',queued)
         old_pool=self.runner.pool;g=self.generation()
-        self.assertTrue(self.runner.rotate_worker_capacity(g))
+        self.runner.rotate_worker_capacity(g)
+        self.assertEqual(self.runner._worker_generation,g)
         self.assertIsNot(self.runner.pool,old_pool)
-        self.assertTrue(task.cancelled());self.assertTrue(visible.cancelled());self.assertEqual(queued.closed,1)
+        eventually(task.cancelled);eventually(visible.cancelled);self.assertEqual(queued.closed,1)
         for r in self.paths:
             probe=NativeLock(self.paths[r],create=False);self.assertFalse(probe.acquire(0))
         self.assertEqual(ended,[])
@@ -80,7 +81,7 @@ class WorkerCapacity(unittest.TestCase):
         original=self.runner.pool
         with self.assertRaisesRegex(RecoveryRequired,'not_committed'):self.runner.rotate_worker_capacity(uuid.uuid4().hex)
         self.assertIs(self.runner.pool,original)
-        g=self.generation();self.assertTrue(self.runner.rotate_worker_capacity(g))
+        g=self.generation();self.runner.rotate_worker_capacity(g);self.assertEqual(self.runner._worker_generation,g)
         current=self.runner.pool;self.assertFalse(self.runner.rotate_worker_capacity(g));self.assertIs(self.runner.pool,current)
     def test_late_worker_raw_writes_and_update_do_not_touch_new_state(self):
         gate=threading.Event();entered=threading.Event();self.gates.append(gate);errors=[]
@@ -121,7 +122,7 @@ class WorkerCapacity(unittest.TestCase):
             with self.runner.job_mutex.held(.5):seen.append(True)
         future.add_done_callback(callback)
         self.runner.rotate_worker_capacity(self.generation())
-        self.assertTrue(task.cancelled());self.assertEqual(seen,[True]);gate.set()
+        eventually(task.cancelled);eventually(lambda:seen==[True]);gate.set()
     def test_repeated_rotations_preserve_each_live_old_group(self):
         gate,old,_=self.old_work()
         for _ in range(3):self.runner.rotate_worker_capacity(self.generation())

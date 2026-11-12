@@ -420,7 +420,9 @@ class PracticalTests(unittest.TestCase):
         self.assertEqual(f.execute(f.check('emergency'))['terminal'],'failed')
 
     def test_corrupt_or_unavailable_journal_does_not_release(self):
-        f=self.fixture();f.store.write_bytes('ownership.json',b'{broken')
+        f=self.fixture()
+        with self.assertRaises(ValueError):f.store.write_bytes('ownership.json',b'{broken')
+        f.store.path('ownership.json').write_bytes(b'{broken') # explicit filesystem corruption injection
         self.assertTrue(f.a.maintenance_blocked())
         self.assertFalse(f.control.check('emergency','admin')['eligible'])
 

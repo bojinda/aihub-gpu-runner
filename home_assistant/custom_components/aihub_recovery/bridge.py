@@ -37,9 +37,9 @@ class Bridge:
             urllib.request.HTTPSHandler(context=ctx), NoRedirect())
 
     def request(self, action, actor, payload=None):
-        if action not in ('status', 'check', 'check-emergency', 'check-abort', 'recover', 'emergency', 'abort', 'verify'):
+        if action not in ('status', 'check', 'check-emergency', 'check-abort', 'recover', 'emergency', 'abort', 'verify','estop-status','estop-check','estop','estop-verify'):
             raise ValueError('action_not_allowed')
-        write = action in ('recover', 'emergency', 'abort', 'verify')
+        write = action in ('recover', 'emergency', 'abort', 'verify','estop','estop-verify')
         key = 'operate_token' if write else 'read_token'
         req = urllib.request.Request(self.url+'/'+action,
             data=json.dumps(payload).encode() if write else None, method='POST' if write else 'GET',
@@ -71,16 +71,16 @@ async def dispatch(hass, connection, msg):
         return
     action = msg.get('action')
     keys = {'id', 'type', 'action'}
-    if action in ('recover', 'emergency', 'abort'):
+    if action in ('recover', 'emergency', 'abort','estop'):
         keys |= {'token', 'confirmed'}
-        if action != 'abort' and 'accept_work_loss' in msg:
+        if action in ('recover','emergency') and 'accept_work_loss' in msg:
             keys.add('accept_work_loss')
-    elif action == 'verify':
+    elif action in ('verify','estop-verify'):
         keys |= {'operation'}
-    if set(msg) != keys or action not in ('status', 'check', 'check-emergency', 'check-abort', 'recover', 'emergency', 'abort', 'verify'):
+    if set(msg) != keys or action not in ('status', 'check', 'check-emergency', 'check-abort', 'recover', 'emergency', 'abort', 'verify','estop-status','estop-check','estop','estop-verify'):
         connection.send_error(msg['id'], 'invalid_request', 'Unsupported recovery request.')
         return
-    if action in ('recover', 'emergency', 'abort') and (msg['confirmed'] is not True or
+    if action in ('recover', 'emergency', 'abort','estop') and (msg['confirmed'] is not True or
             not isinstance(msg['token'], str) or len(msg['token']) > 8192):
         connection.send_error(msg['id'], 'invalid_request', 'Exact confirmation is required.')
         return
@@ -88,7 +88,7 @@ async def dispatch(hass, connection, msg):
             action == 'emergency' and msg.get('accept_work_loss') is not True):
         connection.send_error(msg['id'], 'invalid_request', 'Explicit work-loss acceptance is required.')
         return
-    if action == 'verify' and (not isinstance(msg['operation'], str) or len(msg['operation']) > 64):
+    if action in ('verify','estop-verify') and (not isinstance(msg['operation'], str) or len(msg['operation']) > 64):
         connection.send_error(msg['id'], 'invalid_request', 'Invalid operation.')
         return
     payload = {k: msg[k] for k in keys-{'id', 'type', 'action'}}

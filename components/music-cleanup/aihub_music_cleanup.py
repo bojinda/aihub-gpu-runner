@@ -15,6 +15,7 @@ import subprocess
 import time
 
 CONFIG = Path('/run/aihub-music-cleanup/config.json')
+PROTOCOL_VERSION = 2
 STATE = Path('/run/aihub-music-runner')
 MAX_BYTES = 64 * 1024 * 1024
 MAX_FILES = 16
@@ -222,18 +223,34 @@ def check_owner(state_root, config, fd):
     s = read_json(state_root / 'ownership.json', 8 * 1024 * 1024)
     boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
     ident = os.fstat(fd)
-    expected = config['gpu0_identity']
+    path,expected=cleanup_lock(state_root,config,s)
     identity = dict(device=ident.st_dev, inode=ident.st_ino,
                     mode=stat.S_IMODE(ident.st_mode), uid=ident.st_uid, gid=ident.st_gid)
-    if (s.get('schema') != 1 or not ready_for_cleanup(s, state_root, config) or s.get('scope') != config['scope']
+    if (s.get('schema') not in (1,2) or not ready_for_cleanup(s, state_root, config) or s.get('scope') != config['scope']
             or s.get('verified_boot') != boot or not isinstance(s.get('owners'), dict)
             or 'gpu0' in s['owners'] or identity != expected
             or s.get('lock_identity', {}).get('gpu0') != expected):
         raise Skip('runner_owned_unready_or_identity_changed')
     # Original inode must still be the pathname's inode, including after flock.
-    current = (state_root / 'physical-locks/gpu0.lock').stat()
+    current = path.stat()
     if (current.st_dev, current.st_ino) != (ident.st_dev, ident.st_ino):
         raise Skip('physical_lock_replaced')
+
+
+def cleanup_lock(state_root,config,state):
+    original=state_root/'physical-locks/gpu0.lock'
+    if state.get('schema')!=2:return original,config['gpu0_identity']
+    g=state['admission_generation'];origin=g['origin']
+    if origin['lock_identity']['gpu0']!=config['gpu0_identity']:
+        raise Skip('original_gpu0_binding_changed')
+    st=original.stat()
+    identity=dict(device=st.st_dev,inode=st.st_ino,mode=stat.S_IMODE(st.st_mode),uid=st.st_uid,gid=st.st_gid)
+    if identity!=config['gpu0_identity'] or not __import__('re').fullmatch('[a-f0-9]{32}',g['id']):
+        raise Skip('original_gpu0_binding_changed')
+    path=original if g['sequence']==0 else state_root/'generations'/g['id']/'gpu0.lock'
+    if path.resolve()!=path or g['lock_identity']!=state['lock_identity']:
+        raise Skip('generation_lock_binding_changed')
+    return path,state['lock_identity']['gpu0']
 
 
 def cleanup(q, executor, item, output_root, model_management, *, config_path=CONFIG, state_root=STATE):
@@ -265,7 +282,8 @@ def cleanup(q, executor, item, output_root, model_management, *, config_path=CON
         try:
             if q.queue or q.currently_running or q.flags:
                 raise Skip('queue_busy_or_external_flags')
-            fd = os.open(state_root / 'physical-locks/gpu0.lock', os.O_RDONLY | os.O_NOFOLLOW)
+            path,_=cleanup_lock(state_root,config,read_json(state_root/'ownership.json',8*1024*1024))
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
             try:
                 try:
                     fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -293,6 +311,7 @@ def cleanup(q, executor, item, output_root, model_management, *, config_path=CON
                                             ('soft_empty_cache', model_management.soft_empty_cache)):
                         phase_start = time.monotonic()
                         try:
+                            check_owner(state_root,config,fd)
                             operation()
                         finally:
                             result['phase_seconds'][name] = round(time.monotonic() - phase_start, 6)

@@ -51,6 +51,8 @@ class IntegratedApplication:
         provision(runner.admission)
         adapter=OwnedExecutionAdapter(runner,settings) if settings['destructive'] else None
         self.control=IntegratedRecovery(runner,adapter,key,settings)
+        from .estop import Estop
+        self.estop=Estop(runner,key)
         self.idle=None
         if settings.get('idle_only_manual') is True:
             from .idle_recovery import IdleRecovery
@@ -77,6 +79,16 @@ class IntegratedApplication:
         if not isinstance(actor,str) or not ACTOR.fullmatch(actor):return reply(400,{'error':'operator_identity_required'})
         if len(body)>16384:return reply(413,{'error':'request_too_large'})
         try:
+            if path in ('/estop-status','/estop-check') and method=='GET' and not body:
+                return reply(200,self.estop.status() if path=='/estop-status' else self.estop.check(actor))
+            if path in ('/estop','/estop-verify') and method=='POST':
+                if role!='operate':return reply(403,{'error':'operate_capability_required'})
+                data=strict_json(body)
+                if path=='/estop-verify':
+                    if not isinstance(data,dict) or set(data)!={'operation'}:raise ValueError()
+                    return reply(200,self.estop.verify(data['operation']))
+                if not isinstance(data,dict) or set(data)!={'token','confirmed'}:raise ValueError()
+                return reply(200,self.estop.execute(data['token'],actor,data['confirmed']))
             errors=self.configuration_errors()
             if errors and ((method=='GET' and path in ('/check','/check-emergency')) or
                            (method=='POST' and path in ('/recover','/emergency'))):
@@ -139,6 +151,9 @@ class IntegratedApplication:
         value.update(configuration_errors=errors,recovery_operational=not errors,
                      recovery_control_required=self.runner.admission.control_required)
         if errors:value['capabilities']=[]
+        value['estop_operational']=self.runner.admission.snapshot().get('schema')==2
+        if value['estop_operational']:
+            value['capabilities']=list(dict.fromkeys(value['capabilities']+['global_estop_v1']))
         if not self.idle:return value
         idle_errors=self.idle.configuration_errors()
         value['configuration_errors']=errors+idle_errors

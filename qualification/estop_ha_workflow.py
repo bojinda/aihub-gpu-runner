@@ -43,6 +43,13 @@ class EstopHA(HACoreIntegration):
         runner.recovery_application=IntegratedApplication(runner,settings,'job-only-token-disposable-0123456789-0123456789')
         store.put_job(dict(request_id='fixture-active',request_hash='payload',state='running',target='ollama',resources=['gpu1']))
         lease=a.try_acquire('fixture-active','payload',('gpu1',),'ollama');job=store.job('fixture-active');job['lease_id']=lease.owner['lease_id'];store.put_job(job)
+        # Populate after constructor startup: qualify the operation itself under
+        # historical load without turning this into another startup investigation.
+        with runner.job_mutex.held():
+            for n in range(5000):
+                store.put_job(dict(request_id=f'history-{n}',request_hash='synthetic',state='success',target='ollama',resources=['gpu1']))
+            with a.mutex.held():
+                state=a.snapshot();state['qualification_padding']='x'*1_450_000;store.write('ownership.json',state)
         def close():lease.close();runner.close();tmp.cleanup()
         return SimpleNamespace(root=root,settings=settings,runner=runner,a=a,lease=lease,store=store,close=close)
 
@@ -100,7 +107,7 @@ class EstopHA(HACoreIntegration):
                 await page.reload();await page.evaluate(MOUNT,{'token':self.ha_token,'lose':False})
                 self.assertEqual(await page.evaluate('calls.filter(x=>x.action==="estop").length'),0)
                 self.assertEqual(self.e.a.snapshot()['admission_generation']['sequence'],seq)
-                report=dict(browser=browser.version,transport='actual HA auth/WS -> Media ASGI -> runner/native',
+                report=dict(browser=browser.version,transport='actual HA auth/WS -> Media ASGI -> runner/native',history_jobs=5000,
                     one_click_seconds=times,authority_sizes=sizes,confirmations=len(dialogs),lost_response='UNKNOWN, no retry',
                     physical='unverified; original native FD still held',card_sha256=hashlib.sha256((ROOT/'home_assistant/www/aihub-recovery-card.js').read_bytes()).hexdigest())
                 (RESULTS/'estop-browser-result.json').write_text(json.dumps(report,indent=2)+'\n');await context.close();await browser.close()

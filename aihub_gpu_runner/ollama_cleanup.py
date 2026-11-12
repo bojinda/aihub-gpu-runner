@@ -63,6 +63,7 @@ _SAFE_REASONS = {
     'kernel_health_boot_unverified', 'kernel_health_log_boot_unverified',
     'kernel_health_log_invalid', 'kernel_health_log_unavailable',
     'physical_lock_identity_changed', 'recovery_control_or_observation_uncertain',
+    'recovery_command_timeout', 'recovery_command_failed', 'recovery_command_os_error',
 }
 _SAFE_REASONS.update(prefix + s for s in ('ollama', 'music', 'wallpaper') for prefix in
     ('service_exceeds_calibrated_idle_baseline_', 'unexplained_backend_activity_',
@@ -160,7 +161,14 @@ class OllamaCleanupGuard:
         self.phase, self.service, self.pid = phase, service, pid
 
     def failure(self, exc):
-        return cleanup_failure(exc, self.phase, service=self.service, pid=self.pid)
+        detail = cleanup_failure(exc, self.phase, service=self.service, pid=self.pid)
+        detail['boundary'] = getattr(self, 'boundary', 'capture')
+        command = getattr(exc, 'observation_failure', None)
+        if isinstance(command, dict):
+            # Constructed only by RecoveryObserver.command from fixed categories
+            # and bounded numbers; no argv, output, environment or exception text.
+            detail['command'] = command
+        return detail
 
     def report_failure(self, exc):
         detail = self.failure(exc)
@@ -625,10 +633,26 @@ class OllamaCleanupGuard:
 
     @_report_errors
     def commit_check(self, deadline, *, terminal=False):
-        """Fresh stable proof using the original budget, without repeated unload."""
+        """One fresh full sample; restabilize only after proof is invalidated.
+
+        Callers establish stability with verify() first. A healthy final sample
+        confirms that proof; turnover/residency/utilization must instead obtain
+        a new consecutive stable run inside the SAME deadline. No backend effect.
+        """
         self.terminal = terminal
+        if terminal:
+            self.boundary = 'prerelease'
         try:
-            return self.verify(deadline)
+            self.mark_phase('deadline')
+            remaining(deadline, CleanupPending)
+            try:
+                observation = self.sample(deadline)
+            except (_MemoryPending, _ProcessPending, _UtilizationPending):
+                return self.verify(deadline)
+            remaining(deadline, CleanupPending)
+            return {'policy_id': self.policy_id, 'binding': binding(self.owner),
+                    'stable_samples': 1, 'observation': observation,
+                    'policy': 'fresh_sample_after_stable_physical_idle'}
         finally:
             self.terminal = False
 

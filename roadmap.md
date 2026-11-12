@@ -591,3 +591,26 @@ atomic commit and Verify behavior. See [mechanism, tests and deployment boundary
 Offline tests and committed builds do not authorize installation or another E-stop.
 Stop for candidate review before a CPU-only attended replacement; E3 live acceptance
 and E4 unattended operation remain **HOLD** until separately established.
+
+### Ordinary Ollama cleanup budget correction — November 12
+
+E3 administrative generation relinquishment has since been verified; it is not
+ordinary cleanup acceptance. The subsequent ordinary job completed inference but
+retained ownership after result publication. F05's unconditional stabilization at
+each of three final boundaries doubles the healthy sample requirement (six to
+twelve) under the unchanged 60-second target budget. Fast or zero-cost observations
+in earlier focused tests did not qualify that deadline property.
+
+The bounded candidate keeps initial consecutive stability, then one fresh complete
+sample at each final boundary. Only a genuinely pending sample restarts the existing
+stable loop under the original deadline. Unsafe/unknown evidence still refuses;
+inference, owned unload, publication, generation fencing and native release order
+are unchanged. Existing failure records now identify the verification boundary and
+distinguish command timeout/exit/OS error from shared-budget exhaustion.
+
+See [correction and reproduction](docs/ollama-cleanup-budget.md). Offline source and
+installed-path qualification are separate from review/deployment approval. Keep
+schedules OFF and preserve retained ownership until separately authorized action.
+Acceptance still requires ordinary Ollama automatic release, a complete **fresh**
+Wallpaper workflow with automatic release, unchanged ToDo cache reuse, and the
+existing five eligible production days. E-stop success does not satisfy those gates.

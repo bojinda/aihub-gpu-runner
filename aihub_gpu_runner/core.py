@@ -1097,6 +1097,7 @@ class Runner:
                 record=lambda **fields: self._update(job_id, **fields))
             if guard:
                 guard.prepare(cleanup_deadline)
+                guard.boundary = 'owned_unload'
                 guard.mark_phase('owned_unload')
             else:
                 cleanup_stage = None
@@ -1111,6 +1112,7 @@ class Runner:
             else:
                 proof = backend.cleanup(execution, cleanup_deadline)
             if guard:
+                guard.boundary = 'initial_stability'
                 proof = dict(proof, physical_ollama_idle=guard.verify(cleanup_deadline))
             if proof.get("completion_verified") is not True or proof.get("cleanup_verified") is not True:
                 raise CleanupPending("cleanup_not_verified")
@@ -1119,6 +1121,7 @@ class Runner:
             if music:
                 music.recheck(cleanup_deadline)
             if guard:
+                guard.boundary = 'prepublication'
                 guard.commit_check(cleanup_deadline)
             result = {"value": execution.value, "media_type": execution.media_type,
                       "artifact_available": execution.artifact is not None}
@@ -1128,6 +1131,7 @@ class Runner:
             if music:
                 music.recheck(cleanup_deadline)
             if guard:
+                guard.boundary = 'postpublication'
                 guard.commit_check(cleanup_deadline)
             # Result publication and positive cleanup proof precede resource handoff.
             self._update(job_id, state=("failed" if execution.error_code else "success"),

@@ -152,14 +152,43 @@ class RecoveryObserver:
         self.run, self.poll_interval = run, poll_interval
 
     def command(self, argv, deadline):
+        started = time.monotonic()
+        budget = max(0., deadline - started)
+        executable = argv[0] if argv else None
+        kind = ('docker_' + argv[1] if executable == self.p.get('docker') and len(argv) > 1
+                and argv[1] in ('inspect', 'top', 'stop', 'kill', 'start') else
+                'docker' if executable == self.p.get('docker') else
+                'kernel_log' if executable == self.p.get('journalctl') else
+                'gpu_query' if executable == self.p.get('nvidia_smi') else 'other')
+        service = next((s for s, v in self.p.get('services', {}).items()
+                        if s in ('ollama', 'music', 'wallpaper') and len(argv) > 2
+                        and argv[2] in (v.get('id'), v.get('name'))), None)
+        def failure(code, category, *, number=None, returncode=None):
+            exc = Uncertain(code)
+            exc.observation_failure = dict(category=category, kind=kind, service=service,
+                elapsed_seconds=round(max(0., time.monotonic()-started), 6),
+                budget_before_seconds=round(budget, 6),
+                remaining_seconds=round(max(0., deadline-time.monotonic()), 6),
+                errno=number if type(number) is int and 0 < number < 4096 else None,
+                returncode=returncode if type(returncode) is int and -255 <= returncode <= 255 else None)
+            return exc
+        # Expiry before launch is not a failed/uncertain external command.
+        try:
+            timeout = remaining(deadline)
+        except Uncertain:
+            raise failure('backend_deadline', 'budget_exhausted_before_launch') from None
         try:
             result = self.run(argv, text=True, capture_output=True, check=False,
-                              timeout=remaining(deadline))
-            if result.returncode != 0:
-                raise Uncertain('recovery_control_or_observation_failed')
-            return result.stdout
-        except (OSError, subprocess.SubprocessError, Uncertain):
-            raise Uncertain('recovery_control_or_observation_uncertain') from None
+                              timeout=timeout)
+        except subprocess.TimeoutExpired:
+            raise failure('recovery_command_timeout', 'command_timeout') from None
+        except OSError as exc:
+            raise failure('recovery_command_os_error', 'command_os_error', number=exc.errno) from None
+        except subprocess.SubprocessError:
+            raise failure('recovery_command_failed', 'command_error') from None
+        if result.returncode != 0:
+            raise failure('recovery_command_failed', 'nonzero_exit', returncode=result.returncode)
+        return result.stdout
 
     @staticmethod
     def contract(meta, canonicalization='legacy'):

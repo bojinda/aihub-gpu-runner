@@ -124,6 +124,30 @@ approximately 17 MB of synthetic authority, real persistence and locks. It prove
 the full worker fits its 60-second budget without a twelve-sample regression;
 hardware and backend observations remain synthetic.
 
+Qualified implementation commit: `e5bab62b17d55f7077f1657d1d53a118153f05fe`.
+Runner wheel version: `0.2.0+ollama.idle.20261113.1`; SHA-256:
+`b33a6107e3aef286224f1f77c44216eb1300f97887f5a83cca1bef36a27aabfa`.
+
+| Check | Result |
+| --- | --- |
+| Unchanged base source suite | 870 executions; zero errors/failures; one optional meeting-harness skip |
+| Candidate source suite | 758 executions; zero errors/failures; same optional skip |
+| Installed wheel, Python 3.12.12, guarded meeting harness enabled | 758 executions / 733 unique methods; zero errors/failures/skips/discovery errors; all 36 loaded native module origins checked |
+| Recovery and one-click E-stop cards | 34 passing; zero errors/skips |
+| Exact failure reproduction on base | One sample; unknown/duplicate error; original lease retained; zero publications |
+| Same reproduction on candidate | Seven samples: invalid + three fresh idle + three final checks; one inference/unload/publication/release |
+| Installed whole worker, real wall clock | 48.860 seconds, six seven-second observations, 1,799 jobs, 17,144,480-byte synthetic authority; 0.097 seconds measured persistence; success and ordinary release within 60 seconds |
+
+Runtime production delta: **56 lines added, 489 removed, net −433** in
+`aihub_gpu_runner/`. Including the two package/build version substitutions:
+58 added, 491 removed, net −433. Core worker, lease/authority, shared recovery
+observer and one-click E-stop source bytes are unchanged. The reduced suite count
+reflects removal of obsolete helper-attestation tests and their imported duplicate
+executions; it is not a subset run of the candidate suite. The first card attempt
+lacked the pinned offline `fake-indexeddb` dependency; reusing version 6.2.5 resolved
+test initialization without source changes. No GPU hardware or live inference was
+used in any qualification.
+
 Before any separately authorized deployment: review this producer limitation,
 establish the exclusive-window guarantee, preserve failed lease/evidence/history,
 install only the qualified artifact in the relevant maintained runner environments,

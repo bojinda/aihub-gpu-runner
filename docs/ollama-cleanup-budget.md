@@ -1,5 +1,9 @@
 # Ordinary cleanup budget correction
 
+The later [idle-observation candidate](ollama-idle-cleanup.md) preserves this
+deadline/final-check correction and replaces the historical immediate refusal for
+an unidentified compute row with bounded re-observation under the same lease.
+
 Base: `c7c772b1d3c1d10fb436bd6a40382192a8b671b2`. This candidate changes the
 CPU runner only. No protocol/schema/settings/policy change or automatic recovery.
 Native host/helper/plugin/client snapshots remain separately represented and are

@@ -18,53 +18,11 @@ class CleanupOutcomes(unittest.TestCase):
         self.f=fixture.PhysicalCleanupTests('runTest');self.f.setUp();self.addCleanup(self.f.doCleanups)
         self.f.memory=lambda:1
 
-    def correlated(self, *, birth='20', clock=100, role=True):
-        self.f.prepare();self.count=0
-        def census(*a,**kw):
-            self.count+=1
-            p=dict(self.f.ollama_pids);roles={}
-            if self.count>1 and self.f.clock.t<.25:
-                p['305']=birth
-                if role:roles['305']={'birth':birth,'role':'llama_list_devices'}
-            return p,roles
-        def read(pid):
-            if pid=='305':
-                if self.f.clock.t>=.25:raise ProcessDisappeared(pid,errno.ENOENT)
-                return birth
-            return self.f.births[pid]
-        self.f.guard.birth_reader=read
-        self.f.apps=lambda:fixture.GPU1+',305,32\n' if self.f.clock.t<.25 else ''
-        self.addCleanup(patch.stopall)
-        patch('aihub_gpu_runner.ollama_probe.snapshot',side_effect=census).start()
-        patch('aihub_gpu_runner.ollama_cleanup.query_start_ticks',return_value=clock).start()
-
-    def test_second_census_complete_attestation_discards_row_until_exit_and_three_samples(self):
-        self.correlated()
-        proof=self.f.guard.verify(2)
-        self.assertEqual(proof['stable_samples'],3)
-        self.assertIn('305',proof['observation']['exited_ollama_processes'])
-        events=self.f.guard.rejection_diagnostics.export()['events']
-        self.assertIn('correlated_probe_sample_discarded',[e['predicate'] for e in events])
-        self.assertIn('gpu1',self.f.state['owners'])
-
-    def test_first_unknown_zombie_or_unrelated_process_is_never_trusted(self):
-        self.correlated(role=False)
-        with self.assertRaisesRegex(RecoveryRequired,'unknown_or_duplicate'):self.f.guard.verify(2)
-        self.assertEqual(self.f.guard.failure(RecoveryRequired('ollama_cleanup_unknown_or_duplicate_gpu_process'))['pid'],'305')
-
-    def test_pid_born_during_query_cannot_authenticate_an_older_row(self):
-        self.correlated(birth='100')
-        with self.assertRaisesRegex(RecoveryRequired,'unknown_or_duplicate'):self.f.guard.verify(2)
-
-    def test_missing_kernel_clock_refuses_correlation(self):
-        self.correlated(clock=None)
-        with self.assertRaisesRegex(RecoveryRequired,'unknown_or_duplicate'):self.f.guard.verify(2)
 
     def test_duplicate_gpu_row_is_named_and_retained(self):
         self.f.prepare();self.f.apps=lambda:2*(fixture.GPU1+',303,0\n')
         with self.assertRaisesRegex(RecoveryRequired,'unknown_or_duplicate'):self.f.guard.verify(2)
         self.assertEqual(self.f.guard.failure(RecoveryRequired('ollama_cleanup_unknown_or_duplicate_gpu_process'))['pid'],'303')
-        self.assertIn('duplicate_compute_identity',[x['predicate'] for x in self.f.guard.rejection_diagnostics.export()['events']])
 
     def test_final_checks_resample_without_repeating_backend_effects(self):
         self.f.prepare();original=self.f.guard.sample;calls=0

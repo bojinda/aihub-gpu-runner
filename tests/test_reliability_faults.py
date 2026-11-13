@@ -28,38 +28,37 @@ class CensusCounterexamples(unittest.TestCase):
         with self.assertRaisesRegex(RecoveryRequired,'process_birth_changed'):self.c.guard.verify(60)
         self.assertIn('gpu1',self.c.state['owners'])
 
-    def test_omitted_original_same_birth_or_unreadable_is_still_fatal(self):
+    def test_omitted_noncompute_lifetime_is_not_idle_authority_and_unreadable_stays_fatal(self):
         self.c.prepare();self.r.tops['ollama'].remove('304')
-        with self.assertRaisesRegex(RecoveryRequired,'unverified_process_disappearance'):self.c.guard.verify(60)
+        self.assertEqual(self.c.guard.verify(60)['stable_samples'], 3)
         def denied(pid):
             if pid=='304':raise PermissionError(errno.EACCES,'private')
         self.r.stat_hook=denied
         with self.assertRaises(PermissionError):self.c.guard.verify(60)
         self.assertIn('gpu1',self.c.state['owners'])
 
-    def test_gpu1_unknown_and_other_service_residency_remain_fatal(self):
+    def test_gpu1_other_service_residency_remains_fatal(self):
         from tests.test_ollama_physical_cleanup import GPU1
         self.c.prepare()
-        for row,reason in [('999,0','unknown_or_duplicate'),('202,96','baseline_music')]:
+        for row,reason in [('202,96','gpu_activity_unexplained')]:
             with self.subTest(row=row):
                 self.c.apps=lambda:GPU1+','+row+'\n'
                 with self.assertRaisesRegex(RecoveryRequired,reason):self.c.guard.verify(60)
                 self.assertIn('gpu1',self.c.state['owners'])
 
-    def test_other_service_gpu1_pid_requires_repeated_container_membership(self):
+    def test_other_service_gpu1_pid_never_needs_repeated_membership_to_refuse(self):
         from tests.test_ollama_physical_cleanup import GPU1
         self.c.prepare();self.r.tops['music'].append('205');self.r.live['205']='55'
         self.c.apps=lambda:GPU1+',205,0\n'
         self.r.gpu_hook=lambda:self.r.tops['music'].remove('205')
-        with self.assertRaisesRegex(RecoveryRequired,'process_birth_changed'):self.c.guard.verify(60)
+        with self.assertRaisesRegex(RecoveryRequired,'gpu_activity_unexplained'):self.c.guard.verify(60)
         self.assertIn('gpu1',self.c.state['owners'])
 
-    def test_omitted_original_worker_requires_positive_exit_and_fresh_samples(self):
+    def test_omitted_original_worker_still_requires_fresh_physical_samples(self):
         self.c.prepare();self.r.exit('304')
         proof=self.c.guard.verify(60)
         self.assertEqual(proof['stable_samples'],3)
-        self.assertEqual(proof['observation']['exited_ollama_processes']['304'],'40')
-        self.assertTrue(self.r.observations()[0]['process_snapshot_discarded'])
+        self.assertEqual(len(self.r.observations()), 3)
 
     def test_independent_gpu0_helper_exit_does_not_abort_gpu1_cleanup(self):
         self.c.prepare();self.r.tops['music'].append('205');self.r.live['205']='55'

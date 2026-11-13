@@ -1,5 +1,9 @@
 # Owned Ollama cleanup requires physical idle
 
+The ordinary-cleanup process contract below is historical. The offline
+[idle-observation simplification](ollama-idle-cleanup.md) supersedes its helper
+attestation and disappearance prerequisites. Manual recovery authority is unchanged.
+
 Physical cleanup was introduced in Phase A (`93b26eb`, based on `154511f`).
 Follow-up development and validation boundaries are described below.
 

@@ -170,7 +170,7 @@ class WorkerBudgetTests(unittest.TestCase):
             return GPU1+',999,1\n' if f.samples >= 5 else original()
         f.apps = apps
         job = self.run_worker(f)
-        self.assertEqual(job['error_code'], 'ollama_cleanup_unknown_or_duplicate_gpu_process')
+        self.assertEqual(job['error_code'], 'ollama_cleanup_process_settling_pending')
         self.assertIn('gpu1', f.a.snapshot()['owners'])
         self.assertEqual(job['ollama_cleanup_failure']['boundary'], 'postpublication')
         with self.assertRaises(Exception): f.runner.result('owned-job')

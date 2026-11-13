@@ -1,11 +1,9 @@
 """Physical idle proof under an existing Ollama lease. No inference or control effects."""
 import copy
 import csv
-import errno
 import functools
 import io
 import math
-import os
 import time
 
 from .backends import CleanupPending, Uncertain, physical_gpu_uuid, remaining
@@ -15,7 +13,7 @@ from .recovery import (ProcessDisappeared, RecoveryObserver, binding, digest,
 
 
 class _MemoryPending(Exception):
-    """Only verified, owned unload memory may consume the bounded polling budget."""
+    """Physical memory is not yet at the calibrated idle ceiling."""
 
 
 class _ProcessPending(Exception):
@@ -24,17 +22,6 @@ class _ProcessPending(Exception):
 
 class _UtilizationPending(Exception):
     """A complete safe observation is still above the accepted idle utilization."""
-
-
-def query_start_ticks():
-    """Host boot clock in the same units as /proc stat starttime; fail closed."""
-    try:
-        rate = os.sysconf('SC_CLK_TCK')
-        if type(rate) is not int or rate <= 0:
-            return None
-        return time.clock_gettime_ns(time.CLOCK_BOOTTIME) * rate // 1_000_000_000
-    except (AttributeError, OSError, ValueError):
-        return None
 
 
 # Never persist arbitrary exception strings, paths, commands, response bodies or
@@ -145,16 +132,7 @@ class OllamaCleanupGuard:
         self.record = record or (lambda **fields: None)
         self.birth_reader = birth_reader
         self.context = None
-        self.exited = {}
-        # Never add these children to the immutable pre-unload request context.
-        # They are untrusted turnover: no observed GPU compute, and positive
-        # disappearance is required before any fresh idle sample can count.
-        self.settling = {}
-        self.readonly_probes = {}
-        from .ollama_diagnostics import BoundedDiagnostics
-        self.rejection_diagnostics = BoundedDiagnostics()
-        self.pending_exits = {}
-        self.sample_exits = set()
+        self.process_births = {}
         self.phase, self.service, self.pid = 'factory', None, None
 
     def mark_phase(self, phase, service=None, pid=None):
@@ -173,13 +151,6 @@ class OllamaCleanupGuard:
     def report_failure(self, exc):
         detail = self.failure(exc)
         fields = {'ollama_cleanup_failure': detail}
-        try:
-            fields['ollama_rejection_diagnostics'] = {
-                **self.rejection_diagnostics.export(), 'failure': detail,
-                'job_id': self.owner['job_id'], 'lease_id': self.owner['lease_id'],
-                'request_hash': self.owner['request_hash'], 'policy_id': self.policy_id}
-        except Exception:
-            pass
         try:
             self.record(**fields)
         except Exception:
@@ -237,6 +208,7 @@ class OllamaCleanupGuard:
             raise RecoveryRequired('ollama_cleanup_main_process_unverified')
         if self.identities(deadline) != identities:
             raise RecoveryRequired('ollama_cleanup_generation_changed')
+        self.process_births = dict(processes)
         self.context = {'binding': binding(self.owner), 'policy_id': self.policy_id,
                         'resources': list(self.resources), 'identities': identities,
                         'ollama_processes': processes, 'owned_work_completed': owned_work,
@@ -255,97 +227,16 @@ class OllamaCleanupGuard:
             raise RecoveryRequired('ollama_cleanup_invalid_gpu_number')
         return result
 
-    def absent(self, pid):
-        try:
-            birth = self.birth_reader(pid)
-        except ProcessDisappeared as exc:
-            if exc.pid != pid or exc.errno not in (errno.ENOENT, errno.ESRCH):
-                raise RecoveryRequired('ollama_cleanup_unverified_process_disappearance') from None
-            return
-        expected = self.context['ollama_processes'].get(pid, self.settling.get(pid))
-        if birth != expected:
-            raise RecoveryRequired('ollama_cleanup_process_birth_changed')
-        raise RecoveryRequired('ollama_cleanup_unverified_process_disappearance')
-
-    def expected_exit(self, pid):
-        ident = self.context['identities']['ollama']
-        expected = self.context['ollama_processes'].get(pid, self.settling.get(pid))
-        if (not self.context['owned_work_completed'] or pid == str(ident['pid']) or
-                expected is None):
-            raise RecoveryRequired('ollama_cleanup_unverified_process_disappearance')
-        self.absent(pid)  # Positive ENOENT/ESRCH for this captured child only.
-        self.exited[pid] = expected
-        self.sample_exits.add(pid)
+    def missing_child(self, pid):
+        # A raced census invalidates this sample. It proves no historical origin
+        # and never supplies idle evidence. The container main must survive.
+        if pid == str(self.context['identities']['ollama']['pid']):
+            return False
+        self.sample_discarded = True
         return True
 
-    def settling_exit(self, pid):
-        """Docker omission is not exit proof for a quarantined noncompute child.
-
-        Only an already tracked post-unload lifetime may wait. Keep it untrusted
-        and continue the full compute/health/queue checks in this observation;
-        it cannot count toward idle stability until positive disappearance.
-        Captured model workers and on_missing confirmation remain strict.
-        """
-        try:
-            birth = self.birth_reader(pid)
-        except ProcessDisappeared as exc:
-            if exc.pid != pid or exc.errno not in (errno.ENOENT, errno.ESRCH):
-                raise RecoveryRequired('ollama_cleanup_unverified_process_disappearance') from None
-            self.expected_exit(pid)  # Independent positive confirmation; no PID reuse.
-            return
-        if birth != self.settling[pid]:
-            raise RecoveryRequired('ollama_cleanup_process_birth_changed')
-        self.pending_exits[pid] = birth
-        self.sample_turnover = True
-
-    def track_processes(self, processes, owned_work):
-        """Quarantine new same-container lifetimes; never infer request origin."""
-        for pid, birth in processes.items():
-            self.mark_phase('service_processes', 'ollama', pid)
-            expected = self.context['ollama_processes'].get(pid, self.settling.get(pid))
-            if pid in self.exited or (expected is not None and birth != expected):
-                raise RecoveryRequired('ollama_cleanup_new_or_reused_process')
-            if expected is None:
-                if not owned_work:
-                    raise RecoveryRequired('ollama_cleanup_new_or_reused_process')
-                if len(self.settling) >= 64:
-                    raise RecoveryRequired('ollama_cleanup_process_turnover_limit')
-                self.settling[pid] = birth
-                self.sample_turnover = True
-        for pid in self.settling:
-            if pid not in processes and pid not in self.exited:
-                self.mark_phase('process_birth_recheck', 'ollama', pid)
-                self.settling_exit(pid)
-        for pid in self.context['ollama_processes']:
-            if pid not in processes and pid not in self.exited:
-                self.mark_phase('process_birth_recheck', 'ollama', pid)
-                self.expected_exit(pid)
-        if set(processes).intersection(self.settling):
-            self.sample_turnover = True
-
-    def probe_census(self, identity, deadline, owned_work):
-        from .ollama_probe import snapshot
-        parent_birth = self.context['ollama_processes'][str(identity['pid'])]
-        processes, roles = snapshot(self.observer, identity, deadline,
-            self.expected_exit, parent_birth, read_birth=self.birth_reader,
-            diagnostic=self.rejection_diagnostics,prior_probes=self.readonly_probes)
-        for pid, expected in self.readonly_probes.items():
-            if pid in processes and roles.get(pid) != expected:
-                raise RecoveryRequired('ollama_cleanup_probe_identity_changed')
-        self.track_processes(processes, owned_work)
-        changed = False
-        for pid, role in roles.items():
-            if pid in self.settling and pid not in self.readonly_probes:
-                self.readonly_probes[pid] = copy.deepcopy(role)
-                changed = True
-        if changed:
-            self.record(ollama_readonly_probe_attestations=copy.deepcopy(self.readonly_probes))
-        return processes
-
     def sample(self, deadline):
-        self.sample_exits = set()
-        self.sample_turnover = False
-        self.pending_exits = {}
+        self.sample_discarded = False
         self.mark_phase('binding')
         owned_work = self.bound()
         if not self.context or owned_work != self.context['owned_work_completed']:
@@ -357,145 +248,58 @@ class OllamaCleanupGuard:
         # This requires empty residency and valid backend readiness. Only targets
         # intersecting the owned resources are checked; GPU0 Music can keep working
         # while a routine GPU1 lease converges. Stopped wallpaper is not contacted.
-        self.mark_phase('queues')
-        self.observer.queues(self.resources, deadline, skip_wallpaper=not identities['wallpaper']['running'])
         self.mark_phase('driver_health')
         driver = self.observer.driver_health(deadline)
-        for pid in self.exited:
-            self.mark_phase('process_birth_recheck', 'ollama', pid)
-            self.absent(pid)
+        # Births detect contradictory/reused lifetimes, not request ownership.
+        # One plain census per service; no executable, ancestry or helper roles.
         known = {}
-        ollama_processes = None
         for service, ident in identities.items():
             self.mark_phase('service_processes', service)
-            # Other-service helpers on GPU0 are not a prerequisite for GPU1
-            # cleanup. Enumerate their PIDs, but birth-bind only compute rows
-            # on our leased UUIDs below. Unknown GPU1 compute remains fatal.
+            processes = self.observer.processes(ident, deadline,
+                **({'on_missing': self.missing_child} if service == 'ollama' else {'pids_only': True}))
             if service == 'ollama':
-                processes = self.probe_census(ident, deadline, owned_work)
-            else:
-                processes = self.observer.processes(ident, deadline, pids_only=True)
-            if service == 'ollama':
-                ollama_processes = processes
+                for pid, birth in processes.items():
+                    if pid in self.process_births and self.process_births[pid] != birth:
+                        raise RecoveryRequired('ollama_cleanup_new_or_reused_process')
+                if len(self.process_births.keys() | processes.keys()) > 64:
+                    raise RecoveryRequired('ollama_cleanup_process_turnover_limit')
+                self.process_births.update(processes)
             for pid, birth in processes.items():
                 if pid in known:
                     raise RecoveryRequired('ollama_cleanup_ambiguous_process')
                 known[pid] = (service, birth)
         uuid_resources = {self.p['gpu_uuids'][r]: r for r in self.resources}
-        usage = {s: {r: 0 for r in self.resources} for s in identities}
         seen, observed_processes = set(), {}
-        foreign_compute = False
-        compute_pids = set()
-        probe_pids_for_sample = set(self.readonly_probes)
         self.mark_phase('compute_apps')
-        started_ticks = query_start_ticks()
         raw = self.observer.command([self.p['nvidia_smi'],
             '--query-compute-apps=gpu_uuid,pid,used_gpu_memory', '--format=csv,noheader,nounits'], deadline)
-        rows = list(csv.reader(io.StringIO(raw)))
-        # Correlate the complete observation before rejecting a process born
-        # between censuses. No absent/defunct/unknown process is authenticated.
-        # GPU PID rows do not prove ancestry of an older stale row: every such
-        # correlation discards the sample and requires positive exit + fresh idle.
-        missing = set()
-        row_keys = set()
-        for row in rows:
-            if not row:
-                continue
-            if len(row) != 3:
-                raise RecoveryRequired('ollama_cleanup_invalid_compute_observation')
-            uuid, pid = physical_gpu_uuid(row[0].strip()), str(int(row[1].strip()))
-            if not pid.isdecimal() or not 0 < int(pid) < 2**31:
-                raise RecoveryRequired('ollama_cleanup_invalid_compute_observation')
-            self.rejection_diagnostics('compute_row_before_correlation',pid=pid,gpu_uuid=uuid,
-                used_gpu_memory=row[2],query_start_ticks=started_ticks,
-                captured_birth=self.context['ollama_processes'].get(pid),
-                settling_birth=self.settling.get(pid),probe_attested=pid in probe_pids_for_sample)
-            if uuid in uuid_resources and (uuid,pid) in row_keys:
-                self.mark_phase('compute_apps','ollama',pid)
-                self.rejection_diagnostics('duplicate_compute_identity',pid=pid,gpu_uuid=uuid)
-                raise RecoveryRequired('ollama_cleanup_unknown_or_duplicate_gpu_process')
-            row_keys.add((uuid,pid))
-            if (uuid in uuid_resources and pid not in known and
-                    pid not in self.context['ollama_processes'] and pid not in self.settling):
-                missing.add(pid)
-        if missing:
-            self.rejection_diagnostics('compute_census_correlation', pids=sorted(missing), query_start_ticks=started_ticks)
-            correlated = self.probe_census(identities['ollama'], deadline, owned_work)
-            for pid in sorted(missing, key=int):
-                self.mark_phase('compute_apps', 'ollama', pid)
-                role = self.readonly_probes.get(pid)
-                birth = correlated.get(pid)
-                if (role is None or not isinstance(birth, str) or not birth.isdecimal() or
-                        started_ticks is None or int(birth) >= started_ticks - 1 or
-                        role['birth'] != birth or pid in self.exited or self.birth_reader(pid) != birth):
-                    self.rejection_diagnostics('unknown_compute_identity_unproven', pid=pid,
-                        observed_birth=birth, query_start_ticks=started_ticks, probe_attested=bool(role))
-                    raise RecoveryRequired('ollama_cleanup_unknown_or_duplicate_gpu_process')
-                known[pid] = ('ollama', birth)
-                probe_pids_for_sample.add(pid)
-                self.sample_turnover = True
-                self.rejection_diagnostics('correlated_probe_sample_discarded', pid=pid, birth=birth)
-        for row in rows:
-            self.mark_phase('compute_apps')
+        for row in csv.reader(io.StringIO(raw)):
             if not row:
                 continue
             if len(row) != 3:
                 raise RecoveryRequired('ollama_cleanup_invalid_compute_observation')
             uuid = physical_gpu_uuid(row[0].strip())
-            pid = str(int(row[1].strip()))
-            self.mark_phase('compute_apps', 'ollama' if uuid in uuid_resources else None, pid)
-            self.rejection_diagnostics('compute_row',pid=pid,gpu_uuid=uuid,used_gpu_memory=row[2],
-                captured_birth=self.context['ollama_processes'].get(pid),settling_birth=self.settling.get(pid),
-                positive_exit_birth=self.exited.get(pid),probe_attested=pid in probe_pids_for_sample)
-            compute_pids.add(pid)
-            if pid in probe_pids_for_sample:
-                self.mark_phase('compute_apps', 'ollama', pid)
-                if uuid not in uuid_resources:
+            pid = row[1].strip()
+            if not pid.isdecimal() or not 0 < int(pid) < 2**31:
+                raise RecoveryRequired('ollama_cleanup_invalid_compute_observation')
+            pid = str(int(pid))
+            self.mark_phase('compute_apps', known.get(pid, (None,))[0], pid)
+            self.number(row[2])
+            if uuid not in uuid_resources:
+                if pid in self.process_births:
                     raise RecoveryRequired('ollama_cleanup_unleased_gpu_activity')
-                if (uuid, pid) in seen:
-                    self.rejection_diagnostics('duplicate_compute_identity', pid=pid, gpu_uuid=uuid)
-                    raise RecoveryRequired('ollama_cleanup_unknown_or_duplicate_gpu_process')
-                seen.add((uuid, pid))
-                self.number(row[2])  # Still reject malformed driver observations.
-                try:
-                    if self.birth_reader(pid) != self.readonly_probes[pid]['birth']:
-                        raise RecoveryRequired('ollama_cleanup_new_or_reused_process')
-                except ProcessDisappeared:
-                    self.expected_exit(pid)
-                self.sample_turnover = True
-                continue  # Never count an active/stale probe row as an idle sample.
-            if pid in self.settling:
-                self.mark_phase('compute_apps', 'ollama', pid)
-                self.rejection_diagnostics('compute_row_without_probe_attestation',pid=pid,
-                    gpu_uuid=uuid,used_gpu_memory=row[2],birth=self.settling[pid],
-                    captured_birth=self.context['ollama_processes'].get(pid),
-                    positive_exit_birth=self.exited.get(pid),probe_attested=False)
-                raise RecoveryRequired('ollama_cleanup_new_or_reused_process')
-            resource = uuid_resources.get(uuid)
-            if resource is None:
-                if pid in self.context['ollama_processes'] or pid in known and known[pid][0] == 'ollama':
-                    raise RecoveryRequired('ollama_cleanup_unleased_gpu_activity')
-                continue
+                continue  # Independent GPU0 Music need not be idle.
             if (uuid, pid) in seen:
-                self.rejection_diagnostics('duplicate_compute_identity', pid=pid, gpu_uuid=uuid)
                 raise RecoveryRequired('ollama_cleanup_unknown_or_duplicate_gpu_process')
             seen.add((uuid, pid))
-            memory = self.number(row[2])
-            if pid not in known:
-                if pid in self.context['ollama_processes']:
-                    self.mark_phase('process_birth_recheck', 'ollama', pid)
-                    self.expected_exit(pid)
-                    continue  # Stale compute row: discard, never count this sample.
-                raise RecoveryRequired('ollama_cleanup_unknown_or_duplicate_gpu_process')
-            service, birth = known[pid]
-            if service != 'ollama':
-                birth = self.birth_reader(pid)
-                known[pid] = (service, birth)
-            foreign_compute |= service != 'ollama'
-            if service == 'ollama' and self.context['ollama_processes'].get(pid) != birth:
-                raise RecoveryRequired('ollama_cleanup_new_or_reused_process')
-            observed_processes[pid] = birth
-            usage[service][resource] += memory
+            if pid in known:
+                service, birth = known[pid]
+                if service != 'ollama':
+                    raise RecoveryRequired('ollama_cleanup_gpu_activity_unexplained')
+                observed_processes[pid] = birth
+            # EVERY compute row invalidates the sample, even zero-MiB rows and
+            # previously captured workers. Unknown is never promoted to trusted.
+            self.sample_discarded = True
         gpus = {}
         self.mark_phase('gpu_health')
         for resource, uuid in ((r, self.p['gpu_uuids'][r]) for r in self.resources):
@@ -512,87 +316,52 @@ class OllamaCleanupGuard:
                 raise RecoveryRequired('ollama_cleanup_gpu_health_unverified')
             gpus[resource] = {'uuid': uuid, 'memory_mb': memory, 'utilization_pct': utilization,
                               'temperature_c': temperature}
-        for pid, birth in observed_processes.items():
-            self.mark_phase('process_birth_recheck', known[pid][0], pid)
+        main = str(identities['ollama']['pid'])
+        for pid, birth in self.process_births.items():
+            self.mark_phase('process_birth_recheck', 'ollama', pid)
             try:
                 current = self.birth_reader(pid)
             except ProcessDisappeared as exc:
-                if known[pid][0] != 'ollama' or exc.pid != pid:
+                if pid == main or exc.pid != pid:
                     raise
-                self.expected_exit(pid)
+                if pid in observed_processes:
+                    self.sample_discarded = True
                 continue
             if current != birth:
                 raise RecoveryRequired('ollama_cleanup_process_birth_changed')
-            if known[pid][0] != 'ollama':
-                # Deferring unrelated birth reads must not attribute a reused
-                # foreign PID to a stale Docker census. Confirm membership
-                # again around the leased-GPU lifetime, without reading the
-                # births of independent helpers on the other physical GPU.
-                service = known[pid][0]
-                if (pid not in self.observer.processes(identities[service], deadline, pids_only=True) or
-                        self.birth_reader(pid) != birth):
-                    raise RecoveryRequired('ollama_cleanup_process_birth_changed')
-        for pid in self.exited:
-            self.mark_phase('process_birth_recheck', 'ollama', pid)
-            self.absent(pid)
-        self.mark_phase('container_identity')
-        if self.identities(deadline) != identities:
-            raise RecoveryRequired('ollama_cleanup_generation_changed')
-        # Re-enumerate before counting a sample. A child arriving during GPU
-        # observations invalidates it, including a newly identified compute PID.
-        self.mark_phase('service_processes', 'ollama')
-        final_processes = self.probe_census(identities['ollama'], deadline, owned_work)
-        unexpected_compute = set(self.settling).intersection(compute_pids) - probe_pids_for_sample
-        if unexpected_compute:
-            self.mark_phase('compute_apps', 'ollama', min(unexpected_compute, key=int))
-            raise RecoveryRequired('ollama_cleanup_new_or_reused_process')
-        if final_processes != ollama_processes:
-            self.sample_turnover = True
-        if self.settling:
-            self.mark_phase('queues')
-            self.observer.queues(self.resources, deadline, skip_wallpaper=not identities['wallpaper']['running'])
+        self.mark_phase('queues')
+        self.observer.queues(self.resources, deadline, skip_wallpaper=not identities['wallpaper']['running'])
         self.mark_phase('container_identity')
         if self.identities(deadline) != identities:
             raise RecoveryRequired('ollama_cleanup_generation_changed')
         self.bound()
         observation = {'observed_at': timestamp(), 'physical_gpus': gpus,
-                       'service_memory_mb': usage, 'driver_health': driver,
-                       'exited_ollama_processes': dict(self.exited),
-                       'process_snapshot_discarded': bool(self.sample_exits or self.sample_turnover)}
-        if self.readonly_probes:
-            observation['readonly_ollama_probes'] = copy.deepcopy(self.readonly_probes)
-        if self.settling:
-            observation['settling_ollama_processes'] = dict(self.settling)
-        if self.pending_exits:
-            observation['pending_ollama_process_exits'] = dict(self.pending_exits)
-        # Persist measured values before classifying a breach. Storage failure
-        # propagates; it cannot be converted into cleanup success or a retry.
+                       'driver_health': driver,
+                       'process_snapshot_discarded': self.sample_discarded}
+        # Keep one bounded physical observation in the existing job. No helper
+        # attestations or per-process diagnostic journal on the success path.
         self.mark_phase('observation_persistence')
         self.record(ollama_cleanup_observation=observation)
         self.mark_phase('limits')
         pending = False
-        for service, values in usage.items():
-            if any(v > self.p['services'][service]['idle_memory_mb'][r] for r, v in values.items()):
-                if service != 'ollama' or not owned_work:
-                    raise RecoveryRequired('service_exceeds_calibrated_idle_baseline_' + service)
-                pending = True
         stopped = not identities['wallpaper']['running'] and identities['wallpaper']['pid'] == 0
         ceilings = self.p['stopped_idle_memory_mb'] if stopped and 'stopped_idle_memory_mb' in self.p else self.p['idle_memory_mb']
         if any(g['memory_mb'] > ceilings[r] for r, g in gpus.items()):
             if not owned_work:
                 raise RecoveryRequired('ollama_cleanup_unowned_memory_residency')
             pending = True
+        remaining(deadline, CleanupPending)
+        if self.sample_discarded:
+            raise _ProcessPending()
         # Only after every identity/queue/driver/health check and the durable
         # observation write may normal post-unload utilization consume the
         # existing budget. Foreign compute on an owned GPU remains unexplained;
         # independent GPU0 Music is outside this GPU1 observation as before.
         if any(g['utilization_pct'] > self.p['idle_utilization_pct'] for g in gpus.values()):
-            if not owned_work or foreign_compute:
+            if not owned_work:
                 raise RecoveryRequired('ollama_cleanup_gpu_activity_unexplained')
             raise _UtilizationPending()
         remaining(deadline, CleanupPending)
-        if self.sample_exits or self.sample_turnover:
-            raise _ProcessPending()
         if pending:
             raise _MemoryPending()
         return observation
@@ -614,11 +383,11 @@ class OllamaCleanupGuard:
                     delay = 1.0
                 except (_MemoryPending, _ProcessPending) as exc:
                     stable = 0
-                    pending = ('ollama_cleanup_process_settling_pending'
-                               if isinstance(exc, _ProcessPending) and self.settling else None)
+                    pending = ('ollama_cleanup_process_settling_pending' if isinstance(exc, _ProcessPending)
+                               else None)
                 else:
                     stable += 1
-                    required = max(3, self.p['samples']) if self.settling else self.p['samples']
+                    required = max(3, self.p['samples'])
                     if stable >= required:
                         remaining(deadline, CleanupPending)
                         return {'policy_id': self.policy_id, 'binding': binding(self.owner),

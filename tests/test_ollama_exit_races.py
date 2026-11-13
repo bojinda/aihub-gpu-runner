@@ -109,7 +109,6 @@ class ExitRaceTests(unittest.TestCase):
         self.assertEqual(self.verify()['stable_samples'], 3)
         obs = self.observations()
         self.assertEqual([o['process_snapshot_discarded'] for o in obs], [True, False, False, False])
-        self.assertEqual(obs[-1]['exited_ollama_processes'], {'304': '40'})
 
     def test_exit_during_capture_is_not_excused(self):
         self.arm_exit()
@@ -127,9 +126,10 @@ class ExitRaceTests(unittest.TestCase):
         self.rejected('container_main_process_unverified')
         self.assertEqual(self.c.records[-1]['ollama_cleanup_failure']['service'], 'music')
 
-    def test_unknown_child_disappearance_is_not_excused(self):
+    def test_unidentified_child_disappearance_only_invalidates_the_sample(self):
         self.c.prepare(); self.tops['ollama'].append('305')
-        self.rejected('unverified_process_disappearance')
+        with self.assertRaises(CleanupPending): self.verify()
+        self.assertTrue(all(o['process_snapshot_discarded'] for o in self.observations()))
 
     def test_permission_error_is_not_disappearance_and_is_sanitized(self):
         self.c.prepare()
@@ -162,7 +162,7 @@ class ExitRaceTests(unittest.TestCase):
     def test_missing_evidence_for_another_pid_is_rejected(self):
         self.c.prepare(); self.arm_exit()
         self.c.guard.birth_reader = lambda pid: (_ for _ in ()).throw(ProcessDisappeared('999', errno.ENOENT))
-        self.rejected('unverified_process_disappearance')
+        self.rejected('container_process_disappeared')
 
     def test_malformed_stat_is_not_disappearance(self):
         self.c.prepare(); self.stat_hook = lambda pid: 'malformed' if pid == '304' else None
@@ -172,23 +172,6 @@ class ExitRaceTests(unittest.TestCase):
         self.c.prepare(); self.live['304'] = '41'
         self.rejected('new_or_reused_process')
 
-    def test_pid_reuse_during_disappearance_confirmation_is_rejected(self):
-        self.c.prepare()
-        def stat(pid):
-            if pid == '304':
-                self.stat_hook = None; self.live[pid] = '41'
-                raise ProcessLookupError(errno.ESRCH, 'vanished')
-        self.stat_hook = stat
-        self.rejected('process_birth_changed')
-
-    def test_transient_missing_read_is_not_positive_exclusion(self):
-        self.c.prepare()
-        def stat(pid):
-            if pid == '304':
-                self.stat_hook = None
-                raise FileNotFoundError(errno.ENOENT, 'vanished')
-        self.stat_hook = stat
-        self.rejected('unverified_process_disappearance')
 
     def test_exit_between_compute_snapshot_and_final_birth_read(self):
         self.c.prepare()
@@ -224,8 +207,8 @@ class ExitRaceTests(unittest.TestCase):
         self.assertIn('gpu1', self.c.state['owners'])
 
     def test_foreign_activity_is_not_hidden_by_expected_exit(self):
-        self.c.prepare(); self.arm_exit(); self.c.apps = lambda: fixture.GPU1 + ',999,1\n'
-        self.rejected('unknown_or_duplicate_gpu_process')
+        self.c.prepare(); self.arm_exit(); self.c.apps = lambda: fixture.GPU1 + ',202,1\n'
+        self.rejected('gpu_activity_unexplained')
 
     def test_exited_child_on_unleased_gpu_is_rejected(self):
         self.c.prepare(); self.exit(); self.c.apps = lambda: fixture.GPU0 + ',304,1\n'
@@ -239,31 +222,6 @@ class ExitRaceTests(unittest.TestCase):
         self.top_hook = changed
         self.rejected('generation_changed')
 
-    def test_retired_pid_reuse_outside_docker_and_gpu_is_rejected(self):
-        self.c.prepare(); self.arm_exit()
-        record = self.c.guard.record
-        def write(**fields):
-            record(**fields)
-            if fields.get('ollama_cleanup_observation', {}).get('process_snapshot_discarded'):
-                self.live['304'] = '41'
-        self.c.guard.record = write
-        self.rejected('process_birth_changed')
-
-    def test_retired_pid_reappearance_even_same_birth_is_rejected(self):
-        self.c.prepare(); self.arm_exit()
-        record = self.c.guard.record
-        def write(**fields):
-            record(**fields)
-            if fields.get('ollama_cleanup_observation', {}).get('process_snapshot_discarded'):
-                self.live['304'] = '40'
-        self.c.guard.record = write
-        self.rejected('unverified_process_disappearance')
-
-    def test_host_without_completed_owned_requests_cannot_excuse_exit(self):
-        job = self.c.store.job('owned-job')
-        job.update(host_stage=True, host_exit_code=0, host_requests=[]); self.c.store.put_job(job)
-        self.c.prepare(); self.arm_exit()
-        self.rejected('unverified_process_disappearance')
 
     def test_exit_resets_previously_good_samples(self):
         self.c.prepare()
@@ -284,11 +242,11 @@ class ExitRaceTests(unittest.TestCase):
         self.assertEqual(len([c for c in self.c.calls if c[0] == 'POST']), 2)
 
     def test_worker_foreign_gpu_failure_has_specific_durable_reason(self):
-        runner, lease = self.worker(); self.c.apps = lambda: fixture.GPU1 + ',999,1\n'
+        runner, lease = self.worker(); self.c.apps = lambda: fixture.GPU1 + ',202,1\n'
         runner._work('owned-job', lease)
         job = self.c.store.job('owned-job')
         self.assertEqual(job['state'], 'reconciling')
-        self.assertEqual(job['error_code'], 'ollama_cleanup_unknown_or_duplicate_gpu_process')
+        self.assertEqual(job['error_code'], 'ollama_cleanup_gpu_activity_unexplained')
         self.assertEqual(job['ollama_cleanup_failure']['phase'], 'compute_apps')
         self.assertNotIn('ollama_cleanup_observation', job)
         lease.release.assert_not_called()
@@ -322,10 +280,10 @@ class ExitRaceTests(unittest.TestCase):
 
     def test_diagnostic_write_failure_preserves_original_error_and_owner(self):
         self.c.prepare()
-        self.c.apps = lambda: fixture.GPU1 + ',999,1\n'
+        self.c.apps = lambda: fixture.GPU1 + ',202,1\n'
         def write(**fields): raise OSError(errno.ENOSPC, 'diagnostic storage unavailable')
         self.c.guard.record = write
-        self.rejected('unknown_or_duplicate_gpu_process')
+        self.rejected('gpu_activity_unexplained')
 
     def test_worker_main_exit_has_specific_reason_and_pid(self):
         self.after_capture = lambda: self.arm_exit('303')

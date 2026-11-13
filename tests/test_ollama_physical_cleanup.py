@@ -129,7 +129,7 @@ class PhysicalCleanupTests(unittest.TestCase):
         self.assertGreaterEqual(self.clock.t,.7)
         self.assertEqual(proof['stable_samples'],3)
         self.assertEqual(len([c for c in self.calls if c[:2]==('POST','/api/generate')]),1)
-        self.assertTrue(any(x.get('ollama_cleanup_observation',{}).get('service_memory_mb',{}).get('ollama',{}).get('gpu1',0)>64 for x in self.records))
+        self.assertTrue(any(x.get('ollama_cleanup_observation',{}).get('physical_gpus',{}).get('gpu1',{}).get('memory_mb',0)>64 for x in self.records))
 
     def test_persistent_memory_breach_expires_without_success(self):
         self.prepare();self.memory=lambda:96
@@ -142,10 +142,10 @@ class PhysicalCleanupTests(unittest.TestCase):
         self.assertEqual(proof['stable_samples'],3)
         self.assertGreaterEqual(self.clock.t,.5)
 
-    def test_unknown_gpu_process_fails_immediately(self):
+    def test_unknown_gpu_process_consumes_bounded_observation_budget(self):
         self.prepare();self.apps=lambda:GPU1+',999,96\n'
-        with self.assertRaisesRegex(RecoveryRequired,'unknown_or_duplicate'):self.guard.verify(2)
-        self.assertAlmostEqual(self.clock.t,.036442)
+        with self.assertRaisesRegex(CleanupPending,'process_settling_pending'):self.guard.verify(2)
+        self.assertEqual(self.clock.t,2)
 
     def test_reused_ollama_process_fails_closed(self):
         self.prepare(); self.ollama_pids['304'] = 'reused'
@@ -235,7 +235,7 @@ class PhysicalCleanupTests(unittest.TestCase):
 
     def test_other_service_residency_is_not_excused(self):
         self.prepare();self.apps=lambda:GPU1+',202,96\n'
-        with self.assertRaisesRegex(RecoveryRequired,'baseline_music'):self.guard.verify(2)
+        with self.assertRaisesRegex(RecoveryRequired,'gpu_activity_unexplained'):self.guard.verify(2)
 
     def test_ollama_on_an_unleased_gpu_is_rejected(self):
         self.prepare();self.apps=lambda:GPU0+',304,96\n'
@@ -341,7 +341,7 @@ class PhysicalCleanupTests(unittest.TestCase):
     def test_host_without_owned_requests_cannot_excuse_residency(self):
         j=self.store.job('owned-job');j.update(host_stage=True,host_exit_code=0,host_requests=[]);self.store.put_job(j)
         self.prepare()
-        with self.assertRaisesRegex(RecoveryRequired,'baseline_ollama'):self.guard.verify(2)
+        with self.assertRaisesRegex(RecoveryRequired,'unowned_memory_residency'):self.guard.verify(2)
 
     def test_missing_policy_keeps_legacy_path_and_dual_keeps_existing_restoration(self):
         self.state.pop('recovery_policy')

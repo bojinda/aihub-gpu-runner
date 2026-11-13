@@ -100,3 +100,35 @@ residency/activity from stranding its completed lease. It does not relax the
 separate paired-GPU Wallpaper container-control or dual-session safeguards.
 No production inspection, mutation, lease recovery or scheduling change occurred
 during this implementation and qualification.
+
+## Read-only preflight failure correction
+
+The bounded follow-up to `d302882` changes `submission_ready` to
+`submission_failure`: the read-only helper returns a sanitized failure code or
+None. Both ordinary worker and host-stage callers use their existing failed/skipped
+and `never_submitted` release blocks for API/observation failures as well as busy
+observations. All observation setup remains inside this read-only exception
+boundary; failed-job persistence and ownership release remain outside it. No
+submit intent, inference, expiration or host-child launch precedes this exit.
+No physical-idle proof is produced. After submit intent, existing uncertainty and
+retention handling is unchanged.
+
+The accepted installed artifact reproduces worker `reconciling` and a raised host
+preflight exception on transient API failure, retaining the unused claims. Ten
+focused regressions exercise real worker/HostStage.run, native leases and durable
+stores with synthetic observations: API loss and restoration, OS/parse errors,
+failed failure-record persistence and uncertain ownership writes in both paths.
+The correction releases only after successful failure-record persistence and
+confirmed native release; it never retries release after a persistence exception.
+
+Production delta: +19/-19 lines, net zero across three modules. The combined
+319-line production reduction and all cooperative release semantics are preserved.
+
+Installed follow-up qualification: 776 Python executions / 751 unique methods,
+zero failures, errors or skips; all 34 JavaScript checks passed. All 36 production
+modules match checkout, wheel and installed hashes. The real-time healthy worker
+completed in 49.54 seconds with six observations and one inference, expiration,
+publication and release, using the same full synthetic history and 60-second budget.
+Artifact: `0.2.0+ollama.sharing.20261113.2`, wheel SHA-256
+`bf9673c0ffba862416c78ebedbfdce79f4ea044870b0115807e95269cd38bd9d`.
+No production or historical-lease action accompanied this qualification.

@@ -27,6 +27,7 @@ class _UtilizationPending(Exception):
 # Never persist arbitrary exception strings, paths, commands, response bodies or
 # user data. These are fixed runner-owned reason codes, not a message regex.
 _SAFE_REASONS = {
+    'backend_transport_or_response_failure', 'invalid_backend_json',
     'backend_deadline', 'ollama_cleanup_uncertain', 'ollama_unload_not_confirmed',
     'ollama_cleanup_utilization_pending',
     'ollama_cleanup_process_settling_pending', 'ollama_cleanup_process_turnover_limit',
@@ -116,26 +117,25 @@ def cleanup_guard(admission, target, owner, backend, *, observer=None, record=No
     return OllamaCleanupGuard(admission, target, owner, observer, record=record)
 
 
-def submission_ready(admission, target, backend):
-    """Read-only preflight before submit intent. Busy is safe to skip, not idle proof."""
-    installed = admission.snapshot().get('recovery_policy')
-    if (target.kind != 'ollama' or target.name != 'ollama' or target.mode_switch is not None or
-            not installed or 'ollama' not in installed['policy'].get('services', {})):
-        return True
-    p = installed['policy']
-    observer = RecoveryObserver(p, {target.name: target}, {target.name: backend})
-    deadline = time.monotonic() + p['observation_timeout']
+def submission_failure(admission, target, backend):
+    """Read-only preflight before submit intent; return a safe failure code or None."""
     try:
+        installed = admission.snapshot().get('recovery_policy')
+        if (target.kind != 'ollama' or target.name != 'ollama' or target.mode_switch is not None or
+                not installed or 'ollama' not in installed['policy'].get('services', {})):
+            return None
+        p = installed['policy']
+        observer = RecoveryObserver(p, {target.name: target}, {target.name: backend})
+        deadline = time.monotonic() + p['observation_timeout']
         observer.queues(target.resources, deadline)
         observer.gpu_sample(target.resources, deadline,
                             stopped='stopped_idle_memory_mb' in p, require_no_compute=True)
-    except (RecoveryRequired, CleanupPending) as exc:
+    except Exception as exc:
         if str(exc) in ('unexplained_backend_activity_ollama', 'unexplained_gpu_process_or_memory',
                         'gpu_not_at_calibrated_idle_gpu1') or str(exc).startswith(
                             'service_exceeds_calibrated_idle_baseline_'):
-            return False
-        raise
-    return True
+            return 'gpu_busy_not_submitted'
+        return 'ollama_preflight_' + cleanup_failure(exc, 'queues')['reason'].removeprefix('ollama_cleanup_')
 
 
 class OllamaCleanupGuard:

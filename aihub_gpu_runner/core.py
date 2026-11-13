@@ -1120,9 +1120,9 @@ class Runner:
             if getattr(target, 'lifecycle', 'always_on') == 'on_demand':
                 self.recovery.lifecycle.run(self, job, lease)
                 return
-            from .ollama_cleanup import submission_ready
-            if not submission_ready(self.admission, target, backend):
-                self._update(job_id, state='failed', error_code='gpu_busy_not_submitted',
+            from .ollama_cleanup import submission_failure
+            if failure := submission_failure(self.admission, target, backend):
+                self._update(job_id, state='failed', error_code=failure,
                              submission_skipped=True)
                 lease.release({'completion_verified': True, 'cleanup_verified': True,
                                'policy': 'never_submitted'})

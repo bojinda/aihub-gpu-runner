@@ -270,10 +270,10 @@ class HostStage:
                 time.sleep(min(self.poll_interval, max(0, deadline - time.monotonic())))
             self.update(state='running', lease_id=self.lease.owner['lease_id'])
             if self.is_ollama and not self.dual and self.target.name == 'ollama':
-                from .ollama_cleanup import submission_ready
+                from .ollama_cleanup import submission_failure
                 backend = OllamaBackend(self.target, self.transport_factory(self.target.base_url))
-                if not submission_ready(self.admission, self.target, backend):
-                    self.update(state='failed', error_code='gpu_busy_not_submitted',
+                if failure := submission_failure(self.admission, self.target, backend):
+                    self.update(state='failed', error_code=failure,
                                 submission_skipped=True, host_exit_code=75)
                     self.lease.release({'completion_verified': True, 'cleanup_verified': True,
                                         'policy': 'never_submitted'})

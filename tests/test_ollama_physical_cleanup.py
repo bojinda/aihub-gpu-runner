@@ -50,7 +50,7 @@ class PhysicalCleanupTests(unittest.TestCase):
         patch('subprocess.check_output', side_effect=AssertionError('real GPU forbidden')).start()
         patch('urllib.request.urlopen', side_effect=AssertionError('real HTTP forbidden')).start()
         # Cleanup fixtures begin with completed work; admission is tested separately.
-        patch('aihub_gpu_runner.ollama_cleanup.submission_ready', return_value=True, create=True).start()
+        patch('aihub_gpu_runner.ollama_cleanup.submission_failure', return_value=None, create=True).start()
         self.target = Target('ollama', 'ollama', ('gpu1',), 'http://offline.invalid',
                              models=('synthetic',), cleanup_timeout=2)
         self.owner = dict(job_id='owned-job', request_hash='hash', lease_id='owned-lease',

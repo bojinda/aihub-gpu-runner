@@ -137,11 +137,11 @@ class IdleReleaseTests(unittest.TestCase):
     def test_busy_admission_has_no_submit_intent_post_or_cleanup(self):
         from aihub_gpu_runner import ollama_cleanup
         # Reach the real preflight through the cleanup fixture's patched entry point.
-        real = ORIGINAL_SUBMISSION_READY
+        real = ORIGINAL_SUBMISSION_FAILURE
         f = self.small(); f.p['observation_timeout'] = 2
         f.models = [{'name': 'direct-client'}]
         with patch.object(ollama_cleanup, 'RecoveryObserver', return_value=f.observer), \
-                patch.object(ollama_cleanup, 'submission_ready', side_effect=real), \
+                patch.object(ollama_cleanup, 'submission_failure', side_effect=real), \
                 patch.object(f.lease, 'mark', wraps=f.lease.mark) as mark:
             f.runner._work('owned-job', f.lease)
         self.assertFalse(any(c.args[0] == 'submit_intent' for c in mark.call_args_list))
@@ -164,7 +164,7 @@ class IdleReleaseTests(unittest.TestCase):
             return original(argv, deadline)
         f.observer.command.side_effect = command
         with patch.object(ollama_cleanup, 'RecoveryObserver', return_value=f.observer), \
-                patch.object(ollama_cleanup, 'submission_ready', side_effect=ORIGINAL_SUBMISSION_READY):
+                patch.object(ollama_cleanup, 'submission_failure', side_effect=ORIGINAL_SUBMISSION_FAILURE):
             f.runner._work('owned-job', f.lease)
         self.assertEqual(f.store.job('owned-job')['error_code'], 'gpu_busy_not_submitted')
         self.assertFalse(any(c[0] == 'POST' for c in f.calls))
@@ -241,6 +241,6 @@ class IdleReleaseTests(unittest.TestCase):
         self.assert_retained(f, 'ollama_cleanup_generation_changed')
 
 
-from aihub_gpu_runner.ollama_cleanup import submission_ready as ORIGINAL_SUBMISSION_READY
+from aihub_gpu_runner.ollama_cleanup import submission_failure as ORIGINAL_SUBMISSION_FAILURE
 
 if __name__ == '__main__': unittest.main()

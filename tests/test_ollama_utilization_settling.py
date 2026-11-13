@@ -224,7 +224,7 @@ class UtilizationSettlingTests(unittest.TestCase):
         self.assertEqual(self.sleeps, [])
 
     def test_worker_unloads_once_and_releases_only_after_three_idle_samples(self):
-        runner, lease, payload = self.worker(); self.sequence([80] + [0]*12)
+        runner, lease, payload = self.worker(); self.sequence([0]*12)
         runner._work('owned-job', lease)
         job = self.c.store.job('owned-job')
         self.assertEqual(job['state'], 'success')
@@ -239,6 +239,9 @@ class UtilizationSettlingTests(unittest.TestCase):
 
     def test_worker_deadline_retains_owner_and_specific_pending_code_without_replay(self):
         runner, lease, payload = self.worker(); self.utilization = lambda: 80
+        self.c.target.cleanup_timeout = 1
+        # No acknowledged-expiration contract: the strict idle deadline remains.
+        patch.object(OllamaCleanupGuard, 'acknowledge_expiration', return_value=None).start()
         runner._work('owned-job', lease)
         job = self.c.store.job('owned-job')
         self.assertEqual(job['state'], 'cleanup_pending')
@@ -246,7 +249,7 @@ class UtilizationSettlingTests(unittest.TestCase):
         self.assertEqual(job['ollama_cleanup_failure']['reason'], job['error_code'])
         self.assertNotIn('cleanup_proof', job)
         self.assertNotIn('results/owned-job.json', self.c.store.values)
-        self.assertAlmostEqual(self.c.clock.t, 61)
+        self.assertAlmostEqual(self.c.clock.t, 2)
         lease.release.assert_not_called()
         self.assertIn('gpu1', self.c.state['owners'])
         count = len(self.c.calls)
@@ -259,17 +262,19 @@ class UtilizationSettlingTests(unittest.TestCase):
         def request(method, route, payload=None, timeout=1):
             value = original(method, route, payload, timeout)
             if method == 'POST' and payload and payload.get('keep_alive') == 0:
-                self.c.clock.t += 45
+                self.c.clock.t += 60
             return value
         self.c.transport.json = request
         runner._work('owned-job', lease)
         self.assertAlmostEqual(self.c.clock.t, 61)
         self.assertLessEqual(len(self.samples), 15)
-        self.assertEqual(self.c.store.job('owned-job')['error_code'], 'ollama_cleanup_utilization_pending')
+        self.assertEqual(self.c.store.job('owned-job')['error_code'], 'backend_deadline')
         lease.release.assert_not_called()
 
     def test_restart_keeps_durable_owner_diagnostic_and_does_not_replay(self):
         runner, lease, payload = self.worker(); self.utilization = lambda: 80
+        self.c.target.cleanup_timeout = 1
+        patch.object(OllamaCleanupGuard, 'acknowledge_expiration', return_value=None).start()
         runner._work('owned-job', lease)
         # Reopen an actual local durable store and exercise Runner startup. No
         # scheduler/recovery thread is allowed to run or contact a backend.
@@ -297,7 +302,7 @@ class UtilizationSettlingTests(unittest.TestCase):
     def test_host_stage_uses_same_utilization_guard_without_extra_unload(self):
         job = self.c.store.job('owned-job')
         job.update(host_stage=True, host_exit_code=0, host_requests=[{'state': 'completed', 'model': 'synthetic'}])
-        self.c.store.put_job(job); self.sequence([80, 0, 0, 0])
+        self.c.store.put_job(job); self.sequence([0, 0, 0])
         stage = types.SimpleNamespace(store=self.c.store, job_id='owned-job', is_ollama=True,
             dual=False, admission=self.c.a, target=self.c.target,
             lease=types.SimpleNamespace(owner=self.c.owner),

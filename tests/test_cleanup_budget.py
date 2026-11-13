@@ -145,11 +145,10 @@ class WorkerBudgetTests(unittest.TestCase):
                           'authority_bytes': f.authority_bytes, 'history_jobs': 1799,
                           'boundaries': f.boundaries, 'telemetry': 'synthetic'}))
 
-    def test_pending_at_each_final_boundary_restabilizes_without_repeated_effects(self):
+    def test_pending_at_each_final_boundary_relinquishes_without_repeated_effects(self):
         for boundary in ('prepublication', 'postpublication', 'prerelease'):
             with self.subTest(boundary=boundary):
-                # Small history here; full size covered above. 5.5 seconds leaves
-                # room for one invalidated sample followed by three new samples.
+                # Completed-only handoff needs no additional quiet interval.
                 f = self.fixture(seconds=5.5, history=20, authority_bytes=30_000)
                 original = OllamaCleanupGuard.sample; injected = []
                 def turnover(guard, deadline):
@@ -160,22 +159,23 @@ class WorkerBudgetTests(unittest.TestCase):
                 with patch.object(OllamaCleanupGuard, 'sample', turnover):
                     job = self.run_worker(f)
                 self.assertEqual(injected, [True]); self.assertEqual(job['state'], 'success')
-                self.assertEqual(f.samples, 9); self.assertEqual(f.publications, 1)
+                self.assertEqual(f.samples, 6); self.assertEqual(f.publications, 1)
+                self.assertFalse(job['cleanup_verified'])
                 self.assertLess(f.elapsed, 60); self.assertEqual(f.a.snapshot()['owners'], {})
 
     def test_unsafe_final_compute_retains_owner_and_result_fence(self):
         f = self.fixture(seconds=1, history=20, authority_bytes=30_000)
         original = f.apps
         def apps():
-            return GPU1+',999,1\n' if f.samples >= 5 else original()
+            return 2*(GPU1+',999,1\n') if f.samples >= 5 else original()
         f.apps = apps
         job = self.run_worker(f)
-        self.assertEqual(job['error_code'], 'ollama_cleanup_process_settling_pending')
+        self.assertEqual(job['error_code'], 'ollama_cleanup_unknown_or_duplicate_gpu_process')
         self.assertIn('gpu1', f.a.snapshot()['owners'])
         self.assertEqual(job['ollama_cleanup_failure']['boundary'], 'postpublication')
         with self.assertRaises(Exception): f.runner.result('owned-job')
 
-    def test_final_turnover_without_enough_remaining_budget_keeps_lease(self):
+    def test_final_turnover_does_not_recreate_twelve_sample_deadline_regression(self):
         f = self.fixture(seconds=7, history=20, authority_bytes=30_000)
         original = OllamaCleanupGuard.sample; injected = []
         def turnover(guard, deadline):
@@ -186,10 +186,10 @@ class WorkerBudgetTests(unittest.TestCase):
         with patch.object(OllamaCleanupGuard, 'sample', turnover):
             job = self.run_worker(f)
         self.assertEqual(injected, [True])
-        self.assertEqual(job['error_code'], 'backend_deadline')
-        self.assertIn('gpu1', f.a.snapshot()['owners'])
-        self.assertEqual(job['ollama_cleanup_failure']['boundary'], 'prerelease')
-        with self.assertRaises(Exception): f.runner.result('owned-job')
+        self.assertEqual(job['state'], 'success')
+        self.assertFalse(job['cleanup_verified'])
+        self.assertEqual(f.a.snapshot()['owners'], {})
+        self.assertEqual(f.samples, 6)
 
     def test_real_job_and_admission_contention_is_bounded_without_observation_under_lock(self):
         # Use real locks with a short holder; do not replace them with nullcontext.

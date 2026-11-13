@@ -225,7 +225,7 @@ class OllamaBackend:
         return Execution(result, {"model": payload["model"]})
     def cleanup(self, execution, deadline):
         return self.cleanup_models((execution.handle["model"],), deadline)
-    def cleanup_models(self, models, deadline):
+    def cleanup_models(self, models, deadline, *, wait_idle=True):
         # A host stage may use distinct map/reduce models. Unload all owned
         # models before checking globally empty residency under that lease.
         try:
@@ -235,6 +235,9 @@ class OllamaBackend:
                     timeout=remaining(deadline, CleanupPending))
                 if response.get("done") is not True:
                     raise CleanupPending("ollama_unload_not_confirmed")
+            if not wait_idle:
+                return {"completion_verified": True, "cleanup_verified": False,
+                        "expiration_acknowledged": True}
             while True:
                 result = self.transport.json("GET", "/api/ps",
                                               timeout=remaining(deadline, CleanupPending))

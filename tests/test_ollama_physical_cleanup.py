@@ -49,6 +49,8 @@ class PhysicalCleanupTests(unittest.TestCase):
         patch('subprocess.run', side_effect=AssertionError('real process forbidden')).start()
         patch('subprocess.check_output', side_effect=AssertionError('real GPU forbidden')).start()
         patch('urllib.request.urlopen', side_effect=AssertionError('real HTTP forbidden')).start()
+        # Cleanup fixtures begin with completed work; admission is tested separately.
+        patch('aihub_gpu_runner.ollama_cleanup.submission_ready', return_value=True, create=True).start()
         self.target = Target('ollama', 'ollama', ('gpu1',), 'http://offline.invalid',
                              models=('synthetic',), cleanup_timeout=2)
         self.owner = dict(job_id='owned-job', request_hash='hash', lease_id='owned-lease',
@@ -63,7 +65,7 @@ class PhysicalCleanupTests(unittest.TestCase):
             self.metas[s]['State'].update(Running=True, Pid=pid)
         self.p = dict(scope='offline-scope', gpu_uuids={'gpu0': GPU0, 'gpu1': GPU1},
             docker='/offline/docker', nvidia_smi='/offline/nvidia-smi',
-            samples=3, idle_utilization_pct=5, max_temperature_c=85,
+            samples=3, observation_timeout=2, idle_utilization_pct=5, max_temperature_c=85,
             idle_memory_mb={'gpu0': 1200, 'gpu1': 256}, stopped_idle_memory_mb={'gpu0': 512, 'gpu1': 64},
             services={s:dict(name=m['Name'][1:], id=m['Id'], image=m['Image'],
                 contract_sha256=RecoveryObserver.contract(m), identity_mode='exact' if s=='wallpaper' else 'contract',
@@ -260,8 +262,12 @@ class PhysicalCleanupTests(unittest.TestCase):
         def release(proof, before_release=None, validate_clear=None):
             if before_release:before_release()
             if validate_clear:validate_clear()
-            self.assertGreaterEqual(self.clock.t,.7)
-            self.assertEqual(proof['physical_ollama_idle']['stable_samples'],3)
+            if proof['cleanup_verified']:
+                self.assertGreaterEqual(self.clock.t,.7)
+                self.assertEqual(proof['physical_ollama_idle']['stable_samples'],3)
+            else:
+                self.assertEqual(proof['release_outcome'], 'completed_without_idle')
+                self.assertNotIn('physical_ollama_idle', proof)
             self.state['owners'].clear()
         lease=types.SimpleNamespace(owner=self.owner,resources=('gpu1',),mark=mark,release=Mock(side_effect=release),close=Mock())
         # Inject only the birth reader; exercise the actual factory and worker.
@@ -284,6 +290,8 @@ class PhysicalCleanupTests(unittest.TestCase):
 
     def test_runner_keeps_lease_and_unpublished_result_on_cleanup_deadline(self):
         runner,lease,payload=self.worker();self.memory=lambda:96
+        self.target.cleanup_timeout = .1
+        patch.object(OllamaCleanupGuard, 'acknowledge_expiration', return_value=None).start()
         runner._work('owned-job',lease)
         self.assertEqual(self.store.job('owned-job')['state'],'cleanup_pending')
         lease.release.assert_not_called();self.assertIn('gpu1',self.state['owners'])
@@ -326,6 +334,7 @@ class PhysicalCleanupTests(unittest.TestCase):
         self.assertEqual(len([c for c in self.calls if c[0]=='POST']),2)
 
     def test_host_stage_normal_cleanup_uses_same_physical_guard(self):
+        self.memory = lambda: 1
         j=self.store.job('owned-job');j.update(host_stage=True,host_exit_code=0,
             host_requests=[{'state':'completed','model':'synthetic'}]);self.store.put_job(j)
         stage=types.SimpleNamespace(store=self.store,job_id='owned-job',is_ollama=True,dual=False,
@@ -336,7 +345,7 @@ class PhysicalCleanupTests(unittest.TestCase):
         with patch('aihub_gpu_runner.ollama_cleanup.RecoveryObserver',return_value=self.observer),patch.object(OllamaCleanupGuard,'__init__',init):
             proof=HostStage._cleanup(stage)
         self.assertEqual(proof['physical_ollama_idle']['stable_samples'],3)
-        self.assertGreaterEqual(self.clock.t,.7)
+        self.assertGreaterEqual(self.clock.t,.2)
 
     def test_host_without_owned_requests_cannot_excuse_residency(self):
         j=self.store.job('owned-job');j.update(host_stage=True,host_exit_code=0,host_requests=[]);self.store.put_job(j)

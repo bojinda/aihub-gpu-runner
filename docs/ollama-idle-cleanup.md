@@ -1,5 +1,9 @@
 # Ordinary Ollama idle-observation candidate
 
+The accepted strict-idle candidate below is historical. For ordinary GPU1 Ollama,
+[cooperative sharing](ollama-cooperative-sharing.md) supersedes its producer-exclusion
+HOLD and adds an honest completed-without-idle release outcome.
+
 Offline candidate based on `0de270834c962e1d66485f89dfe9bbaaf69dbc8f`, including
 the successful cleanup-budget correction and one-click E-stop. No production
 mutation or historical lease retirement. Deployment is **HOLD under the present

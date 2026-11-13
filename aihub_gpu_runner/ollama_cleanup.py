@@ -1,4 +1,4 @@
-"""Physical idle proof under an existing Ollama lease. No inference or control effects."""
+"""Idle evidence or completed cooperative handoff under an existing Ollama lease."""
 import copy
 import csv
 import functools
@@ -116,6 +116,28 @@ def cleanup_guard(admission, target, owner, backend, *, observer=None, record=No
     return OllamaCleanupGuard(admission, target, owner, observer, record=record)
 
 
+def submission_ready(admission, target, backend):
+    """Read-only preflight before submit intent. Busy is safe to skip, not idle proof."""
+    installed = admission.snapshot().get('recovery_policy')
+    if (target.kind != 'ollama' or target.name != 'ollama' or target.mode_switch is not None or
+            not installed or 'ollama' not in installed['policy'].get('services', {})):
+        return True
+    p = installed['policy']
+    observer = RecoveryObserver(p, {target.name: target}, {target.name: backend})
+    deadline = time.monotonic() + p['observation_timeout']
+    try:
+        observer.queues(target.resources, deadline)
+        observer.gpu_sample(target.resources, deadline,
+                            stopped='stopped_idle_memory_mb' in p, require_no_compute=True)
+    except (RecoveryRequired, CleanupPending) as exc:
+        if str(exc) in ('unexplained_backend_activity_ollama', 'unexplained_gpu_process_or_memory',
+                        'gpu_not_at_calibrated_idle_gpu1') or str(exc).startswith(
+                            'service_exceeds_calibrated_idle_baseline_'):
+            return False
+        raise
+    return True
+
+
 class OllamaCleanupGuard:
     def __init__(self, admission, target, owner, observer, *, record=None, birth_reader=process_birth):
         self.a, self.target, self.owner, self.observer = admission, target, dict(owner), observer
@@ -132,6 +154,7 @@ class OllamaCleanupGuard:
         self.record = record or (lambda **fields: None)
         self.birth_reader = birth_reader
         self.context = None
+        self.release_proof = None
         self.process_births = {}
         self.phase, self.service, self.pid = 'factory', None, None
 
@@ -189,6 +212,29 @@ class OllamaCleanupGuard:
 
     def identities(self, deadline):
         return {s: self.observer.container(s, deadline) for s in self.p['services']}
+
+    def acknowledge_expiration(self, proof):
+        if proof.get('expiration_acknowledged') is not True or not self.bound():
+            raise RecoveryRequired('ollama_cleanup_completion_unverified')
+        self.context['expiration_acknowledged'] = True
+        self.record(ollama_cleanup_context=self.context)
+
+    def completed_release(self):
+        return {'completion_verified': True, 'cleanup_verified': False,
+                'expiration_acknowledged': True, 'release_outcome': 'completed_without_idle'}
+
+    def release_evidence(self, observation):
+        if observation.get('release_outcome') == 'completed_without_idle':
+            proof = observation
+        else:
+            proof = {'completion_verified': True, 'cleanup_verified': True,
+                     'physical_ollama_idle': observation}
+        self.release_proof = proof
+        return proof
+
+    def can_relinquish(self):
+        return bool(self.resources == ('gpu1',) and self.target.name == 'ollama' and
+                    self.context and self.context.get('expiration_acknowledged'))
 
     @_report_errors
     def prepare(self, deadline):
@@ -294,7 +340,7 @@ class OllamaCleanupGuard:
             seen.add((uuid, pid))
             if pid in known:
                 service, birth = known[pid]
-                if service != 'ollama':
+                if service != 'ollama' and not self.can_relinquish():
                     raise RecoveryRequired('ollama_cleanup_gpu_activity_unexplained')
                 observed_processes[pid] = birth
             # EVERY compute row invalidates the sample, even zero-MiB rows and
@@ -330,7 +376,12 @@ class OllamaCleanupGuard:
             if current != birth:
                 raise RecoveryRequired('ollama_cleanup_process_birth_changed')
         self.mark_phase('queues')
-        self.observer.queues(self.resources, deadline, skip_wallpaper=not identities['wallpaper']['running'])
+        queues = self.observer.queues(self.resources, deadline,
+            skip_wallpaper=not identities['wallpaper']['running'],
+            **({'allow_ollama_residency': True} if self.can_relinquish() else {}))
+        if self.can_relinquish() and any(q.get('models') for name, q in queues.items()
+                                       if self.observer.targets[name].kind == 'ollama'):
+            self.sample_discarded = True
         self.mark_phase('container_identity')
         if self.identities(deadline) != identities:
             raise RecoveryRequired('ollama_cleanup_generation_changed')
@@ -379,10 +430,14 @@ class OllamaCleanupGuard:
                     observation = self.sample(deadline)
                 except _UtilizationPending:
                     stable = 0
+                    if self.can_relinquish():
+                        return self.completed_release()
                     pending = 'ollama_cleanup_utilization_pending'
                     delay = 1.0
                 except (_MemoryPending, _ProcessPending) as exc:
                     stable = 0
+                    if self.can_relinquish():
+                        return self.completed_release()
                     pending = ('ollama_cleanup_process_settling_pending' if isinstance(exc, _ProcessPending)
                                else None)
                 else:
@@ -417,7 +472,12 @@ class OllamaCleanupGuard:
             try:
                 observation = self.sample(deadline)
             except (_MemoryPending, _ProcessPending, _UtilizationPending):
-                return self.verify(deadline)
+                evidence = self.completed_release() if self.can_relinquish() else self.verify(deadline)
+                if self.release_proof is not None and evidence.get('release_outcome') == 'completed_without_idle':
+                    self.release_proof.clear()
+                    self.release_proof.update(evidence)
+                    self.record(cleanup_verified=False, cleanup_proof=self.release_proof)
+                return evidence
             remaining(deadline, CleanupPending)
             return {'policy_id': self.policy_id, 'binding': binding(self.owner),
                     'stable_samples': 1, 'observation': observation,
@@ -430,6 +490,12 @@ class OllamaCleanupGuard:
         self.terminal = True
         try:
             self.bound()
+            if self.release_proof and self.release_proof.get('release_outcome') == 'completed_without_idle':
+                job = self.a.store.job(self.owner['job_id'])
+                if (job.get('cleanup_verified') is not False or
+                        job.get('cleanup_proof') != self.release_proof or
+                        not job.get('ollama_cleanup_context', {}).get('expiration_acknowledged')):
+                    raise RecoveryRequired('ollama_cleanup_completion_unverified')
             remaining(deadline, CleanupPending)
         finally:
             self.terminal = False

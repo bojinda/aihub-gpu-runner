@@ -138,6 +138,9 @@ class HostStage:
         if any(item['state'] != 'completed' for item in requests):
             raise RecoveryRequired('host_request_unresolved')
         if self.is_ollama:
+            if not requests and not self.dual:
+                return {'completion_verified': True, 'cleanup_verified': True,
+                        'policy': 'never_submitted'}
             if requests and self.admission.snapshot()['owners']['gpu1']['phase'] not in (
                     'host_requests_complete', 'cleanup_pending'):
                 raise RecoveryRequired('host_request_persistence_unconfirmed')
@@ -151,7 +154,10 @@ class HostStage:
                 guard.mark_phase('owned_unload')
             try:
                 if requests:
-                    backend.cleanup_models({item['model'] for item in requests}, deadline)
+                    expiration = backend.cleanup_models({item['model'] for item in requests}, deadline,
+                                                        wait_idle=guard is None)
+                    if guard:
+                        guard.acknowledge_expiration(expiration)
             except Exception as exc:
                 if guard:
                     guard.report_failure(exc)
@@ -160,7 +166,9 @@ class HostStage:
                     'policy': 'all_stage_requests_completed_then_owned_model_cleanup',
                     'request_count': len(requests)}
             if guard:
-                proof['physical_ollama_idle'] = guard.verify(deadline)
+                proof = guard.release_evidence(guard.verify(deadline))
+                self.cleanup_guard = guard
+                self.cleanup_deadline = deadline
             if self.dual:
                 # Only known-complete calls plus verified owned unload can reach restoration.
                 self.lease.mark('restore_intent')
@@ -261,6 +269,15 @@ class HostStage:
                     return 75
                 time.sleep(min(self.poll_interval, max(0, deadline - time.monotonic())))
             self.update(state='running', lease_id=self.lease.owner['lease_id'])
+            if self.is_ollama and not self.dual and self.target.name == 'ollama':
+                from .ollama_cleanup import submission_ready
+                backend = OllamaBackend(self.target, self.transport_factory(self.target.base_url))
+                if not submission_ready(self.admission, self.target, backend):
+                    self.update(state='failed', error_code='gpu_busy_not_submitted',
+                                submission_skipped=True, host_exit_code=75)
+                    self.lease.release({'completion_verified': True, 'cleanup_verified': True,
+                                        'policy': 'never_submitted'})
+                    return 75
             self.lease.mark('submit_intent')
             if self.resource == 'gpu0':
                 # Unknown residency prevents launching another foreground workload.
@@ -327,8 +344,11 @@ class HostStage:
                 code = 70
             self.update(state='success' if code == 0 else 'failed', host_exit_code=code,
                         error_code='stage_inputs_changed_during_execution' if changed else None if code == 0 else 'host_command_failed',
-                        cleanup_verified=True, cleanup_proof=proof)
-            self.lease.release(proof)
+                        cleanup_verified=proof['cleanup_verified'], cleanup_proof=proof)
+            guard = getattr(self, 'cleanup_guard', None)
+            self.lease.release(proof, **({
+                'before_release': lambda: guard.commit_check(self.cleanup_deadline, terminal=True),
+                'validate_clear': lambda: guard.release_binding(self.cleanup_deadline)} if guard else {}))
             print('[gpu-lock] Released verified stage: ' + self.job_id, file=sys.stderr)
             return code
         except Interrupted as exc:

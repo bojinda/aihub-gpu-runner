@@ -326,7 +326,8 @@ class RecoveryObserver:
             if current == started:
                 raise RecoveryRequired('original_container_process_survives')
 
-    def queues(self, resources, deadline, prompt=None, teardown=False, skip_wallpaper=False):
+    def queues(self, resources, deadline, prompt=None, teardown=False, skip_wallpaper=False,
+               allow_ollama_residency=False):
         observations = {}
         for name, target in self.targets.items():
             if skip_wallpaper and name == 'wallpaper':
@@ -355,7 +356,9 @@ class RecoveryObserver:
                     observations[name] = q
                 else:
                     q = backend.transport.json('GET', '/api/ps', timeout=remaining(deadline))
-                    if q.get('models') != []:
+                    if not isinstance(q.get('models'), list):
+                        raise RecoveryRequired('backend_readiness_unverified_' + name)
+                    if q['models'] and not allow_ollama_residency:
                         raise RecoveryRequired('unexplained_backend_activity_' + name)
                     version = backend.transport.json('GET', '/api/version', timeout=remaining(deadline))
                     if not isinstance(version.get('version'), str) or not version['version']:
@@ -369,7 +372,8 @@ class RecoveryObserver:
                 observations[name] = {'api_unavailable': True}
         return observations
 
-    def gpu_sample(self, resources, deadline, executing=False, stopped=False, *, music_context=None):
+    def gpu_sample(self, resources, deadline, executing=False, stopped=False, *, music_context=None,
+                   require_no_compute=False):
         # Opt-in only for the bound post-ack Music guard. Default callers retain
         # their original hard service-limit behavior. No exception is suppressed.
         if music_context is not None and (tuple(resources) != ('gpu0',) or executing or not stopped):
@@ -410,6 +414,8 @@ class RecoveryObserver:
             pid, memory = int(row[1]), float(row[2])
             if pid not in known or not math.isfinite(memory) or memory < 0:
                 raise RecoveryRequired('unexplained_gpu_process_or_memory')
+            if require_no_compute:
+                raise CleanupPending('gpu_not_at_calibrated_idle_' + resource)
             if music_context is not None:
                 service = known[pid]
                 birth = process_birth(pid)

@@ -241,12 +241,12 @@ class ExitRaceTests(unittest.TestCase):
         lease.release.assert_called_once()
         self.assertEqual(len([c for c in self.c.calls if c[0] == 'POST']), 2)
 
-    def test_worker_foreign_gpu_failure_has_specific_durable_reason(self):
-        runner, lease = self.worker(); self.c.apps = lambda: fixture.GPU1 + ',202,1\n'
+    def test_worker_duplicate_foreign_gpu_rows_have_specific_durable_reason(self):
+        runner, lease = self.worker(); self.c.apps = lambda: 2*(fixture.GPU1 + ',202,1\n')
         runner._work('owned-job', lease)
         job = self.c.store.job('owned-job')
         self.assertEqual(job['state'], 'reconciling')
-        self.assertEqual(job['error_code'], 'ollama_cleanup_gpu_activity_unexplained')
+        self.assertEqual(job['error_code'], 'ollama_cleanup_unknown_or_duplicate_gpu_process')
         self.assertEqual(job['ollama_cleanup_failure']['phase'], 'compute_apps')
         self.assertNotIn('ollama_cleanup_observation', job)
         lease.release.assert_not_called()

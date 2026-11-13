@@ -727,8 +727,13 @@ class Lease:
     def mark(self, phase, detail=None):
         self.admission._modify(self.owner, self.resources, phase=phase, detail=detail)
     def release(self, proof, *, before_release=None, before_clear=None, validate_clear=None):
+        completed_only = (proof.get('release_outcome') == 'completed_without_idle' and
+                          proof.get('cleanup_verified') is False and
+                          proof.get('expiration_acknowledged') is True and
+                          self.owner['target'] == 'ollama' and self.resources == ('gpu1',) and
+                          validate_clear is not None)
         if (proof.get("completion_verified") is not True or
-                proof.get("cleanup_verified") is not True):
+                not (proof.get("cleanup_verified") is True or completed_only)):
             raise ValueError("unverified_release")
         if before_release is not None:
             before_release()  # External observations never hold the shared journal mutex.
@@ -1115,6 +1120,13 @@ class Runner:
             if getattr(target, 'lifecycle', 'always_on') == 'on_demand':
                 self.recovery.lifecycle.run(self, job, lease)
                 return
+            from .ollama_cleanup import submission_ready
+            if not submission_ready(self.admission, target, backend):
+                self._update(job_id, state='failed', error_code='gpu_busy_not_submitted',
+                             submission_skipped=True)
+                lease.release({'completion_verified': True, 'cleanup_verified': True,
+                               'policy': 'never_submitted'})
+                return
             lease.mark("submit_intent")
             if self.recovery:
                 self.recovery.prepare(job_id, lease)
@@ -1148,12 +1160,16 @@ class Runner:
                 music.prepare(cleanup_deadline)
                 proof = backend.cleanup(execution, cleanup_deadline, music_guard=music)
                 proof = dict(proof, music_release_idle=music.verify(cleanup_deadline))
+            elif guard:
+                proof = backend.cleanup_models((execution.handle['model'],), cleanup_deadline, wait_idle=False)
+                guard.acknowledge_expiration(proof)
             else:
                 proof = backend.cleanup(execution, cleanup_deadline)
             if guard:
                 guard.boundary = 'initial_stability'
-                proof = dict(proof, physical_ollama_idle=guard.verify(cleanup_deadline))
-            if proof.get("completion_verified") is not True or proof.get("cleanup_verified") is not True:
+                proof = guard.release_evidence(guard.verify(cleanup_deadline))
+            if proof.get("completion_verified") is not True or not (
+                    proof.get("cleanup_verified") is True or proof.get('release_outcome') == 'completed_without_idle'):
                 raise CleanupPending("cleanup_not_verified")
             # Keep diagnostic attribution through publication and durable release.
             cleanup_stage = 'limits' if guard else None
@@ -1172,9 +1188,9 @@ class Runner:
             if guard:
                 guard.boundary = 'postpublication'
                 guard.commit_check(cleanup_deadline)
-            # Result publication and positive cleanup proof precede resource handoff.
+            # Durable publication and the declared release evidence precede handoff.
             self._update(job_id, state=("failed" if execution.error_code else "success"),
-                         error_code=execution.error_code, cleanup_verified=True, cleanup_proof=proof)
+                         error_code=execution.error_code, cleanup_verified=proof['cleanup_verified'], cleanup_proof=proof)
             if music:
                 music.recheck(cleanup_deadline, terminal=True)
             if music:
@@ -1204,7 +1220,8 @@ class Runner:
             current = self.store.job(job_id)
             from .music_cleanup import failure_code
             music_code = failure_code(exc) if music is not None else None
-            if current["state"] in FINAL and current.get("cleanup_verified") is True:
+            if current["state"] in FINAL and (current.get("cleanup_verified") is True or
+                    current.get('cleanup_proof', {}).get('release_outcome') == 'completed_without_idle'):
                 owners = self.admission.snapshot()["owners"]
                 still_owned = lease and any(owners.get(r, {}).get("lease_id") ==
                                              lease.owner["lease_id"] for r in lease.resources)
@@ -1267,7 +1284,9 @@ class Runner:
             raise Conflict("result_not_terminal")
         value = self.store.read("results/" + check_id(job_id) + ".json", {"value": None})
         return dict(value, state=job["state"], error_code=job["error_code"],
-                    publication_warning=job.get("publication_warning"))
+                    publication_warning=job.get("publication_warning"),
+                    **({'release_outcome': 'completed_without_idle', 'cleanup_verified': False}
+                       if job.get('cleanup_proof', {}).get('release_outcome') == 'completed_without_idle' else {}))
     def artifact(self, job_id):
         with self.store.authority_mutex():
             result = self._result_locked(job_id)
